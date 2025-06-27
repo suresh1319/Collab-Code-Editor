@@ -1,38 +1,110 @@
-.App {
-  text-align: center;
+.homePageWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  height: 100vh;
 }
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+.formWrapper {
+  background: #282a36;
+  padding: 20px;
+  border-radius: 10px;
+  width: 400px;
+  max-width: 90%;
 }
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.inputGroup{
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+}
+.mainlabel{
+  margin-bottom: 20px;
+  margin-top: 0px;
+}
+.homePageLogo{
+  height: 150px;
+  margin-bottom: 30px;
+}
+.inputBox{
+  padding: 10px;
+  border-radius: 5px;
+  outline: none;
+  border: none;
+  margin-bottom: 15px;
+  font-size: 14px;
+  font-weight: bold;
+}
+.btn{
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all .3s ease-in-out; 
+}
+.joinbtn,.leaveBtn{
+  background-color: #4aed88;
+  width: 100px;
+  margin-left: auto;
+}
+.joinbtn:hover,.leaveBtn:hover{
+  background-color: #2b824c;
+}
+.createInfo {
+  margin: 0 auto;
+  margin-top: 20px;
+}
+.createNewBtn{
+  color: #4aed88;
+  text-decoration: none;
+  border-bottom: 1px solid #4aed88;
+   transition: all .3s ease-in-out;
+}
+.createNewBtn:hover{
+  color: #2b824c;
+}
+.mainWrap{
+  display: flex;
+  grid-template-columns: 230px 1fr;
+   height: 100vh;
+}
+.aside{
+  background: #1c1e29;
+  padding: 15px;
   color: white;
+  display: flex;
+  flex-direction: column;
 }
-
-.App-link {
-  color: #61dafb;
+.asideInner{
+  flex: 1;
 }
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.clientsList {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.client{
+   display: flex;
+  align-items: center;
+  flex-direction: column;
+  font-weight: bold;
+}
+.logo{
+  border-bottom: 1px solid #424242;
+  padding-bottom: 10px;
+}
+.buttonContainer{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.leaveBtn{
+  width: 100%;
+}
+.CodeMirror{
+  min-height: calc(100vh - 20px);
+  min-width: calc(100vw - 170px);
+  font-size: 20px;
+  line-height: 1.6;
+  padding-top: 20px;
 }
