@@ -1,3 +1,16 @@
+# Collaborative Code Editor
+
+This is a real-time collaborative code editor built with React, Express, and Socket.IO. Multiple users can join a room and edit code together, with changes instantly reflected for all participants. The project demonstrates live code sharing, user presence, and a modern code editing experience using CodeMirror.
+
+## Features
+- Real-time code collaboration
+- Multiple users per room
+- User presence display
+- Syntax highlighting with CodeMirror
+- Built with React (frontend) and Express/Socket.IO (backend)
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
