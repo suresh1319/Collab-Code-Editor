@@ -1,5 +1,7 @@
 # Collaborative Code Editor
 
+![App Preview](public/preview.png)
+
 This is a real-time collaborative code editor built with React, Express, and Socket.IO. Multiple users can join a room and edit code together, with changes instantly reflected for all participants. The project demonstrates live code sharing, user presence, and a modern code editing experience using CodeMirror.
 
 ## Features
