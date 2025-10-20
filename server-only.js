@@ -3,39 +3,21 @@ const { Server } = require('socket.io');
 const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
-const path = require('path');
 const ACTIONS = require('./src/Actions');
 
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'https://your-app.vercel.app';
 
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: [
-          "'self'",
-          "ws://localhost:3001",
-          "http://localhost:3001",
-          "ws://localhost:3000",
-          "http://localhost:3000"
-        ],
-        // You can add more directives as needed
-      },
-    },
-  })
-);
+app.use(helmet());
 app.use(cors({
   origin: CLIENT_ORIGIN,
   methods: ['GET', 'POST'],
   credentials: true
 }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'build')));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -59,7 +41,6 @@ function getAllConnectedClients(roomId) {
 }
 
 io.on('connection', (socket) => {
-  // No sensitive logs in production
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
@@ -90,18 +71,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// Serve React app for all unknown routes (fallback)
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'build', 'index.html'));
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    status: 'error',
-    message: 'Something went wrong!'
-  });
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 server.listen(PORT, () => {

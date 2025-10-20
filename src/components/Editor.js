@@ -59,8 +59,7 @@ const Editor = ({ socketRef, roomId, onCodeChange }) => {
         socketRef.current.off(ACTIONS.CODE_CHANGE, onCodeChangeSocket);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socketRef.current]); // Depend on socketRef.current directly
+  }, [socketRef]);
 
   // Only render the editor if the socket is ready
   if (!socketRef.current) return null;
