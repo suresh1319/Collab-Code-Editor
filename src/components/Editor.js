@@ -15,7 +15,7 @@ function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
 }
 
-const Editor = ({ socketRef, roomId, onCodeChange, userName }) => {
+const Editor = ({ socketRef, roomId, onCodeChange, userName, canWrite }) => {
   const editorRef = useRef(null);
   const textareaRef = useRef(null);
   const providerRef = useRef(null);
@@ -24,6 +24,13 @@ const Editor = ({ socketRef, roomId, onCodeChange, userName }) => {
   const timeoutsRef = useRef(new Map());
   
   const [peers, setPeers] = useState([]);
+
+  // Enforce readOnly state whenever canWrite changes
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.setOption('readOnly', !canWrite);
+    }
+  }, [canWrite]);
 
   useEffect(() => {
     if (!textareaRef.current) return;
@@ -37,6 +44,7 @@ const Editor = ({ socketRef, roomId, onCodeChange, userName }) => {
         autoCloseTags: true,
         autoCloseBrackets: true,
         lineNumbers: true,
+        readOnly: !canWrite,
       }
     );
     editorRef.current = editor;

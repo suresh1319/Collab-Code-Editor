@@ -18,7 +18,9 @@ const EditorPage = () => {
     const { roomId } = useParams();
     const reactNavigator = useNavigate();
     const [clients, setClients] = useState([]);
-    const [socketReady, setSocketReady] = useState(false); // NEW
+    const [socketReady, setSocketReady] = useState(false);
+    const [canWrite, setCanWrite] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         const init = async () => {
@@ -41,6 +43,14 @@ const EditorPage = () => {
                 });
             });
 
+            const updateLocalPermissions = (updatedClients) => {
+                const me = updatedClients.find(c => c.socketId === socketRef.current.id);
+                if (me) {
+                    setCanWrite(me.canWrite);
+                    setIsAdmin(me.isAdmin);
+                }
+            };
+
             // Listening for joined event
             socketRef.current.on(
                 ACTIONS.JOINED,
@@ -52,6 +62,8 @@ const EditorPage = () => {
                         toast.success(`${userName} joined the room.`);
                     }
                     setClients(clients);
+                    updateLocalPermissions(clients);
+
                     // If I am the new user (my socketId === socketRef.current.id),
                     // ask the first other client for the code
                     if (socketId === socketRef.current.id) {
@@ -68,6 +80,39 @@ const EditorPage = () => {
                     }
                 }
             );
+
+            // Listening for permission changes
+            socketRef.current.on(ACTIONS.PERMISSION_CHANGED, ({ clients }) => {
+                setClients(clients);
+                updateLocalPermissions(clients);
+            });
+
+            // Listening for write access requests (Admin only)
+            socketRef.current.on(ACTIONS.WRITE_ACCESS_REQUESTED, ({ requesterSocketId, userName, message }) => {
+                toast((t) => (
+                    <div>
+                        <b>{userName}</b> requests write access.<br/>
+                        <i style={{ color: '#555' }}>"{message}"</i><br/><br/>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button 
+                                onClick={() => {
+                                    socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId: requesterSocketId, canWrite: true });
+                                    toast.dismiss(t.id);
+                                }}
+                                style={{ background: '#50fa7b', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Approve
+                            </button>
+                            <button 
+                                onClick={() => toast.dismiss(t.id)}
+                                style={{ background: '#ff5555', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Deny
+                            </button>
+                        </div>
+                    </div>
+                ), { duration: 10000, position: 'top-center' });
+            });
 
             // Listening for disconnected
             socketRef.current.on(
@@ -88,6 +133,8 @@ const EditorPage = () => {
                 socketRef.current.disconnect();
                 socketRef.current.off(ACTIONS.JOINED);
                 socketRef.current.off(ACTIONS.DISCONNECTED);
+                socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
+                socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
             }
         };
     }, []);
@@ -104,6 +151,27 @@ const EditorPage = () => {
 
     function leaveRoom() {
         reactNavigator('/');
+    }
+
+    function togglePermission(targetSocketId, currentCanWrite) {
+        if (!isAdmin) return;
+        socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, {
+            roomId,
+            targetSocketId,
+            canWrite: !currentCanWrite
+        });
+    }
+
+    function requestWriteAccess() {
+        const message = prompt('Enter a message for the admin to request write access:');
+        if (message) {
+            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, {
+                roomId,
+                message,
+                userName: location.state?.userName
+            });
+            toast.success('Request sent to admin!');
+        }
     }
 
     if (!location.state) {
@@ -123,12 +191,18 @@ const EditorPage = () => {
                             height="140px"
                         />
                     </div>
-                    <h3>Connected</h3>
+                    <h3>Connected {isAdmin ? '(Admin)' : ''}</h3>
                     <div className="clientsList">
                         {clients.map((client) => (
                             <Client
                                 key={client.socketId}
                                 userName={client.userName}
+                                isAdmin={client.isAdmin}
+                                canWrite={client.canWrite}
+                                isMe={client.socketId === socketRef.current?.id}
+                                iAmAdmin={isAdmin}
+                                onTogglePermission={() => togglePermission(client.socketId, client.canWrite)}
+                                onRequestAccess={requestWriteAccess}
                             />
                         ))}
                     </div>
@@ -149,7 +223,13 @@ const EditorPage = () => {
                             codeRef.current = code;
                         }}
                         userName={location.state?.userName}
+                        canWrite={canWrite}
                     />
+                )}
+                {!canWrite && (
+                    <div className="readonly-badge">
+                        Read-Only Mode
+                    </div>
                 )}
             </div>
         </div>

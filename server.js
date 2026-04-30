@@ -51,12 +51,16 @@ const io = new Server(server, {
 
 const userSocketMap = {};
 const socketRoomMap = {};
+const roomState = {}; // { roomId: { admin: socketId, permissions: { socketId: boolean } } }
 
 function getAllConnectedClients(roomId) {
+  const state = roomState[roomId];
   return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map((socketId) => {
     return {
       socketId,
       userName: userSocketMap[socketId],
+      isAdmin: state ? state.admin === socketId : false,
+      canWrite: state ? !!state.permissions[socketId] : false
     };
   });
 }
@@ -67,9 +71,45 @@ io.on('connection', (socket) => {
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
+
+    // Initialize room state if it doesn't exist
+    if (!roomState[roomId]) {
+      roomState[roomId] = {
+        admin: socket.id,
+        permissions: {}
+      };
+    }
+
+    // Default permission
+    if (roomState[roomId].admin === socket.id) {
+      roomState[roomId].permissions[socket.id] = true;
+    } else if (roomState[roomId].permissions[socket.id] === undefined) {
+      roomState[roomId].permissions[socket.id] = false; // Read-only by default
+    }
+
     let clients = getAllConnectedClients(roomId);
     clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
+  });
+
+  socket.on(ACTIONS.TOGGLE_PERMISSION, ({ roomId, targetSocketId, canWrite }) => {
+    if (roomState[roomId] && roomState[roomId].admin === socket.id) {
+      roomState[roomId].permissions[targetSocketId] = canWrite;
+      let clients = getAllConnectedClients(roomId);
+      clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+      io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+    }
+  });
+
+  socket.on(ACTIONS.REQUEST_WRITE_ACCESS, ({ roomId, message, userName }) => {
+    if (roomState[roomId] && roomState[roomId].admin) {
+      const adminSocketId = roomState[roomId].admin;
+      io.to(adminSocketId).emit(ACTIONS.WRITE_ACCESS_REQUESTED, {
+        requesterSocketId: socket.id,
+        userName,
+        message
+      });
+    }
   });
 
   socket.on(ACTIONS.CODE_CHANGE,({roomId, code})=>{
@@ -83,10 +123,28 @@ io.on('connection', (socket) => {
   socket.on('disconnecting', () => {
     const rooms = [...socket.rooms];
     rooms.forEach((roomId) => {
+      // Re-assign admin if needed
+      if (roomState[roomId] && roomState[roomId].admin === socket.id) {
+        const clientsInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);
+        if (clientsInRoom.length > 0) {
+          roomState[roomId].admin = clientsInRoom[0];
+          roomState[roomId].permissions[clientsInRoom[0]] = true; // Auto-grant write to new admin
+        } else {
+          delete roomState[roomId];
+        }
+      }
+
       socket.to(roomId).emit(ACTIONS.DISCONNECTED, {
         socketId: socket.id,
         userName: userSocketMap[socket.id],
       });
+
+      // Broadcast permission change to sync potential new admin
+      if (roomState[roomId]) {
+        let clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
+        clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+        socket.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+      }
     });
     delete userSocketMap[socket.id];
     delete socketRoomMap[socket.id];
