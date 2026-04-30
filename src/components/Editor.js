@@ -47,9 +47,14 @@ const Editor = ({ socketRef, roomId, onCodeChange, userName }) => {
 
     // Initialize Yjs
     const ydoc = new Y.Doc();
-    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+
+    // Use current origin in production to avoid localhost hardcoding from .env
+    const baseOrigin = process.env.NODE_ENV === 'production' 
+      ? window.location.origin 
+      : (process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001');
+
     // Replace http:// or https:// with ws:// or wss:// and append /yjs
-    const wsUrl = backendUrl.replace(/^http/, 'ws') + '/yjs';
+    const wsUrl = baseOrigin.replace(/^http/, 'ws') + '/yjs';
     
     const provider = new WebsocketProvider(
       wsUrl,
