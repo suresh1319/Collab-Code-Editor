@@ -24,7 +24,7 @@ function App() {
         },
       }}></Toaster>
     </div>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path='/' element={<Home />}></Route>
           <Route path='/editor/:roomId' element={<EditorPage />}></Route>

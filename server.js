@@ -5,6 +5,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const ACTIONS = require('./src/Actions');
+const WebSocket = require('ws');
+const setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
 
 require('dotenv').config();
 
@@ -22,9 +24,10 @@ app.use(
           "ws://localhost:3001",
           "http://localhost:3001",
           "ws://localhost:3000",
-          "http://localhost:3000"
+          "http://localhost:3000",
+          "wss://your-backend.railway.app",
+          "https://your-backend.railway.app"
         ],
-        // You can add more directives as needed
       },
     },
   })
@@ -107,3 +110,19 @@ app.use((err, req, res, next) => {
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+// Yjs WebSocket server (Attached to the same HTTP server)
+const wss = new WebSocket.Server({ noServer: true });
+
+server.on('upgrade', (request, socket, head) => {
+  if (request.url.startsWith('/yjs')) {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  }
+});
+
+wss.on('connection', (conn, req) => {
+  setupWSConnection(conn, req);
+});
+console.log('Yjs WebSocket server is attached to the HTTP server');

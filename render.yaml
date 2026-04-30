@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: realtime-editor
-    env: node
-    buildCommand: cd realtime-editor && npm install && npm run build
-    startCommand: cd realtime-editor && npm run prod
-    envVars:
-      - key: NODE_ENV
-        value: production

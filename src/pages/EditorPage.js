@@ -148,6 +148,7 @@ const EditorPage = () => {
                         onCodeChange={(code) => {
                             codeRef.current = code;
                         }}
+                        userName={location.state?.userName}
                     />
                 )}
             </div>
