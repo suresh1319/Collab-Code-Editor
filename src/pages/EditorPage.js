@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
 import Editor from '../components/Editor';
+import InviteModal from '../components/InviteModal';
 import { initSocket } from '../socket';
 import {
     useLocation,
@@ -12,6 +13,22 @@ import {
 } from 'react-router-dom';
 
 const EditorPage = () => {
+    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+    const [showInvite, setShowInvite] = useState(false);
+
+    useEffect(() => {
+        if (theme === 'light') {
+            document.body.setAttribute('data-theme', 'light');
+        } else {
+            document.body.removeAttribute('data-theme');
+        }
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+
+    const toggleTheme = () => {
+        setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    };
+
     const socketRef = useRef(null);
     const codeRef = useRef('');
     const location = useLocation();
@@ -179,60 +196,71 @@ const EditorPage = () => {
     }
 
     return (
-        <div className="mainWrap">
-            <div className="aside">
-                <div className="asideInner">
-                    <div className="logo">
-                        <img
-                            className="logoImage"
-                            src="/logo1.jpg" 
-                            width="250px"
-                            alt="logo"
-                            height="140px"
-                        />
+        <>
+            <div className="mainWrap">
+                <div className="aside">
+                    <div className="asideInner">
+                        <div className="logo">
+                            <div className="logo-text">
+                                <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                            </div>
+                        </div>
+                        <button className="theme-toggle-aside" onClick={toggleTheme} title="Toggle Theme">
+                            <span className="toggle-track">
+                                <span className="toggle-thumb"></span>
+                            </span>
+                            <span className="toggle-label">{theme === 'light' ? '☀️ Light' : '🌙 Dark'}</span>
+                        </button>
+                        <h3>Connected {isAdmin ? '(Admin)' : ''}</h3>
+                        <div className="clientsList">
+                            {clients.map((client) => (
+                                <Client
+                                    key={client.socketId}
+                                    userName={client.userName}
+                                    isAdmin={client.isAdmin}
+                                    canWrite={client.canWrite}
+                                    isMe={client.socketId === socketRef.current?.id}
+                                    iAmAdmin={isAdmin}
+                                    onTogglePermission={() => togglePermission(client.socketId, client.canWrite)}
+                                    onRequestAccess={requestWriteAccess}
+                                />
+                            ))}
+                        </div>
                     </div>
-                    <h3>Connected {isAdmin ? '(Admin)' : ''}</h3>
-                    <div className="clientsList">
-                        {clients.map((client) => (
-                            <Client
-                                key={client.socketId}
-                                userName={client.userName}
-                                isAdmin={client.isAdmin}
-                                canWrite={client.canWrite}
-                                isMe={client.socketId === socketRef.current?.id}
-                                iAmAdmin={isAdmin}
-                                onTogglePermission={() => togglePermission(client.socketId, client.canWrite)}
-                                onRequestAccess={requestWriteAccess}
-                            />
-                        ))}
-                    </div>
+                    <button className="btn inviteBtn" onClick={() => setShowInvite(true)}>
+                        🔗 Invite
+                    </button>
+                    <button className="btn copyBtn" onClick={copyRoomId}>
+                        Copy ROOM ID
+                    </button>
                 </div>
-                <button className="btn copyBtn" onClick={copyRoomId}>
-                    Copy ROOM ID
-                </button>
-                <button className="btn leaveBtn" onClick={leaveRoom}>
-                    Leave
-                </button>
+                <div className="editorWrap">
+                    {socketReady && (
+                        <Editor
+                            socketRef={socketRef}
+                            roomId={roomId}
+                            onCodeChange={(code) => {
+                                codeRef.current = code;
+                            }}
+                            userName={location.state?.userName}
+                            canWrite={canWrite}
+                            editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                        />
+                    )}
+                    {!canWrite && (
+                        <div className="readonly-badge">
+                            Read-Only Mode
+                        </div>
+                    )}
+                </div>
             </div>
-            <div className="editorWrap">
-                {socketReady && (
-                    <Editor
-                        socketRef={socketRef}
-                        roomId={roomId}
-                        onCodeChange={(code) => {
-                            codeRef.current = code;
-                        }}
-                        userName={location.state?.userName}
-                        canWrite={canWrite}
-                    />
-                )}
-                {!canWrite && (
-                    <div className="readonly-badge">
-                        Read-Only Mode
-                    </div>
-                )}
-            </div>
-        </div>
+            {showInvite && (
+                <InviteModal roomId={roomId} onClose={() => setShowInvite(false)} />
+            )}
+            <button className="btn leaveBtn leave-fixed" onClick={leaveRoom}>
+                🚪 Leave
+            </button>
+        </>
     );
 };
 

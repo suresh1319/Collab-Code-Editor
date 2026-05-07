@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Codemirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
+import 'codemirror/theme/dracula.css';
+import 'codemirror/theme/eclipse.css';
 import 'codemirror/mode/javascript/javascript';
 import 'codemirror/addon/edit/closetag';
 import 'codemirror/addon/edit/closebrackets';
@@ -15,7 +17,7 @@ function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
 }
 
-const Editor = ({ socketRef, roomId, onCodeChange, userName, canWrite }) => {
+const Editor = ({ socketRef, roomId, onCodeChange, userName, canWrite, editorTheme }) => {
   const editorRef = useRef(null);
   const textareaRef = useRef(null);
   const providerRef = useRef(null);
@@ -32,6 +34,13 @@ const Editor = ({ socketRef, roomId, onCodeChange, userName, canWrite }) => {
     }
   }, [canWrite]);
 
+  // Switch CodeMirror theme dynamically
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.setOption('theme', editorTheme || 'dracula');
+    }
+  }, [editorTheme]);
+
   useEffect(() => {
     if (!textareaRef.current) return;
     
@@ -40,7 +49,7 @@ const Editor = ({ socketRef, roomId, onCodeChange, userName, canWrite }) => {
       textareaRef.current,
       {
         mode: { name: 'javascript', json: true },
-        theme: 'dracula',
+        theme: editorTheme || 'dracula',
         autoCloseTags: true,
         autoCloseBrackets: true,
         lineNumbers: true,

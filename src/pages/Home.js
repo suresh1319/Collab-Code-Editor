@@ -1,12 +1,27 @@
-import { React, useState } from "react";
+import { React, useState, useEffect } from "react";
 import { v4 as uuid } from "uuid";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Home = () => {
-    const navigate = useNavigate();
-  const [roomID, setRoomId] = useState("");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [roomID, setRoomId] = useState(searchParams.get('roomId') || "");
   const [userName, setUserName] = useState("");
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.setAttribute('data-theme', 'light');
+    } else {
+      document.body.removeAttribute('data-theme');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   const createNewRoom = (e) => {
     e.preventDefault();
@@ -34,9 +49,16 @@ const Home = () => {
     }
   return (
     <div className="homePageWrapper">
+      <button className="theme-toggle" onClick={toggleTheme} title="Toggle Theme">
+        {theme === 'light' ? '🌙' : '☀️'}
+      </button>
       <div className="formWrapper">
-        <img className="homePageLogo" src="/logo1.jpg" alt="logo" />
-        <h4 className="mainlabel">Paste Invitation Room Id</h4>
+        <div className="home-logo-text">
+          <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+        </div>
+        <h4 className="mainlabel">
+            {searchParams.get('roomId') ? '🎉 You were invited! Enter your username to join' : 'Paste Invitation Room Id'}
+        </h4>
         <div className="inputGroup">
           <input
             type="text"
