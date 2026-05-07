@@ -7,6 +7,7 @@ const path = require('path');
 const ACTIONS = require('./src/Actions');
 const WebSocket = require('ws');
 const setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
+const { v4: uuid } = require('uuid');
 
 require('dotenv').config();
 
@@ -51,7 +52,18 @@ const io = new Server(server, {
 
 const userSocketMap = {};
 const socketRoomMap = {};
-const roomState = {}; // { roomId: { admin: socketId, permissions: { socketId: boolean } } }
+// roomState: { admin, permissions, fileSystem }
+const roomState = {};
+
+// ---- File System Helpers ----
+function createDefaultFileSystem() {
+  const rootId = 'root';
+  const fileId = uuid();
+  return {
+    [rootId]: { id: rootId, name: 'Project', type: 'folder', children: [fileId], parentId: null },
+    [fileId]: { id: fileId, name: 'index.js', type: 'file', parentId: rootId },
+  };
+}
 
 function getAllConnectedClients(roomId) {
   const state = roomState[roomId];
@@ -66,7 +78,6 @@ function getAllConnectedClients(roomId) {
 }
 
 io.on('connection', (socket) => {
-  // No sensitive logs in production
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
@@ -76,7 +87,8 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) {
       roomState[roomId] = {
         admin: socket.id,
-        permissions: {}
+        permissions: {},
+        fileSystem: createDefaultFileSystem(),
       };
     }
 
@@ -84,14 +96,61 @@ io.on('connection', (socket) => {
     if (roomState[roomId].admin === socket.id) {
       roomState[roomId].permissions[socket.id] = true;
     } else if (roomState[roomId].permissions[socket.id] === undefined) {
-      roomState[roomId].permissions[socket.id] = false; // Read-only by default
+      roomState[roomId].permissions[socket.id] = false;
     }
 
     let clients = getAllConnectedClients(roomId);
     clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
+
+    // Send current file system to the joining user
+    socket.emit(ACTIONS.FS_SYNC, { fileSystem: roomState[roomId].fileSystem });
   });
 
+  // ---- File System Events ----
+  socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
+    if (!roomState[roomId]) return;
+    const fs = roomState[roomId].fileSystem;
+    // node: { id, name, type, parentId }
+    fs[node.id] = node;
+    if (fs[node.parentId]) {
+      if (!fs[node.parentId].children) fs[node.parentId].children = [];
+      fs[node.parentId].children.push(node.id);
+    }
+    io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+  });
+
+  socket.on(ACTIONS.FS_DELETE_NODE, ({ roomId, nodeId }) => {
+    if (!roomState[roomId]) return;
+    const fs = roomState[roomId].fileSystem;
+    // Recursively collect all node ids to delete
+    const toDelete = [];
+    const collect = (id) => {
+      const node = fs[id];
+      if (!node) return;
+      toDelete.push(id);
+      if (node.children) node.children.forEach(collect);
+    };
+    collect(nodeId);
+    // Remove from parent
+    const node = fs[nodeId];
+    if (node && node.parentId && fs[node.parentId]) {
+      fs[node.parentId].children = (fs[node.parentId].children || []).filter(c => c !== nodeId);
+    }
+    toDelete.forEach(id => delete fs[id]);
+    io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+  });
+
+  socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {
+    if (!roomState[roomId]) return;
+    const fs = roomState[roomId].fileSystem;
+    if (fs[nodeId]) {
+      fs[nodeId].name = newName;
+      io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+    }
+  });
+
+  // ---- Access Control ----
   socket.on(ACTIONS.TOGGLE_PERMISSION, ({ roomId, targetSocketId, canWrite }) => {
     if (roomState[roomId] && roomState[roomId].admin === socket.id) {
       roomState[roomId].permissions[targetSocketId] = canWrite;
@@ -112,8 +171,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on(ACTIONS.CODE_CHANGE,({roomId, code})=>{
-    socket.to(roomId).emit(ACTIONS.CODE_CHANGE,{code});
+  socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
+    socket.to(roomId).emit(ACTIONS.CODE_CHANGE, { code });
   });
 
   socket.on(ACTIONS.SYNC_CODE, ({ code, socketId }) => {
@@ -123,12 +182,11 @@ io.on('connection', (socket) => {
   socket.on('disconnecting', () => {
     const rooms = [...socket.rooms];
     rooms.forEach((roomId) => {
-      // Re-assign admin if needed
       if (roomState[roomId] && roomState[roomId].admin === socket.id) {
         const clientsInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);
         if (clientsInRoom.length > 0) {
           roomState[roomId].admin = clientsInRoom[0];
-          roomState[roomId].permissions[clientsInRoom[0]] = true; // Auto-grant write to new admin
+          roomState[roomId].permissions[clientsInRoom[0]] = true;
         } else {
           delete roomState[roomId];
         }
@@ -139,7 +197,6 @@ io.on('connection', (socket) => {
         userName: userSocketMap[socket.id],
       });
 
-      // Broadcast permission change to sync potential new admin
       if (roomState[roomId]) {
         let clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
         clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
@@ -159,10 +216,7 @@ app.use((req, res) => {
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({
-    status: 'error',
-    message: 'Something went wrong!'
-  });
+  res.status(500).json({ status: 'error', message: 'Something went wrong!' });
 });
 
 server.listen(PORT, () => {

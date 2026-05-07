@@ -9,6 +9,11 @@ const ACTIONS = {
     PERMISSION_CHANGED: 'permission_changed',
     REQUEST_WRITE_ACCESS: 'request_write_access',
     WRITE_ACCESS_REQUESTED: 'write_access_requested',
+    // File system actions
+    FS_SYNC: 'fs_sync',
+    FS_CREATE_NODE: 'fs_create_node',
+    FS_DELETE_NODE: 'fs_delete_node',
+    FS_RENAME_NODE: 'fs_rename_node',
 };
 
 module.exports = ACTIONS;
