@@ -1,74 +1,134 @@
-# Collaborative Code Editor
+# CollabCE — Collaborative Code Editor
 
-![App Preview](public/preview.png)
+> A real-time collaborative IDE in your browser. Create, edit, and share full projects with your team — just like VS Code, but multiplayer.
 
-This is a real-time collaborative code editor built with React, Express, Socket.IO, and **Yjs CRDT**. Multiple users can join a room and edit code together, with changes instantly and perfectly synchronized for all participants without any conflicts.
+---
 
 ## ✨ Features
-- **Real-Time Code Sync**: Powered by Yjs Conflict-Free Replicated Data Types (CRDT).
-- **Live Cursors**: See exactly where other people in the room are typing, complete with colored widgets and floating name labels.
-- **User Presence Bar**: Instantly see who is currently active in the room.
-- **Multiple Users**: Support for multiple users simultaneously editing the exact same document seamlessly.
-- **Syntax Highlighting**: Built-in JavaScript syntax highlighting using CodeMirror 5.
+
+### 🖊️ Real-Time Collaboration
+- **Yjs CRDT sync** — conflict-free real-time editing across all connected users
+- **Live cursors** — see exactly where teammates are typing, with colored labels
+- **Per-file collaboration** — multiple users can edit different files simultaneously
+
+### 📁 Full Project Explorer
+- VS Code-style **file & folder tree** in a collapsible side panel
+- **Create, rename, delete** files and folders inline
+- File system changes sync instantly to all connected users
+
+### 📂 Multi-File Editing
+- **File tabs** — open multiple files, switch between them easily
+- **Auto language detection** — syntax highlighting based on file extension
+
+### 🌐 Multi-Language Syntax Highlighting
+| Language | Extensions |
+|---|---|
+| JavaScript / JSX / TS | `.js` `.jsx` `.ts` `.tsx` |
+| HTML | `.html` `.htm` |
+| CSS / SCSS | `.css` `.scss` |
+| Python | `.py` |
+| JSON | `.json` |
+| Markdown | `.md` |
+| Shell | `.sh` `.bash` |
+| SQL | `.sql` |
+| PHP | `.php` |
+| C / C++ / Java / C# | `.c` `.cpp` `.java` `.cs` |
+
+### 👥 Access Control
+- **Admin / Editor / Viewer** role badges for every user
+- Admin can **grant or revoke** write access per user
+- Viewers can **request write access** from the admin
+- All permission changes reflect in real-time
+
+### 📤 Upload Projects
+- Upload **individual files** or an **entire folder** with its structure intact
+- Uploaded content is injected into the collaborative Yjs document automatically
+
+### 📥 Download Project
+- Download the full project as a **ZIP file** with the correct folder structure using `jszip`
+
+### 🔗 Invite Friends
+- Share a link via **WhatsApp, Telegram, Twitter, LinkedIn, Facebook, or Email**
+- Invite links pre-fill the Room ID on the join page
+
+### 🎨 Light / Dark Theme
+- Toggle between light and dark mode from anywhere in the editor
+- Theme persists across sessions via `localStorage`
+
+---
 
 ## 🛠️ Technology Stack
-- **Frontend**: React, React Router, CodeMirror 5, `y-codemirror`
-- **Backend**: Node.js, Express, Socket.IO, `y-websocket`
-- **Synchronization**: Two separate backends run concurrently:
-  - `Express + Socket.IO` (Port `3001`): Handles room connections, leaving/joining events, and client tracking.
-  - `y-websocket` Server (Port `1234`): A dedicated WebSocket server responsible for high-performance Yjs code synchronization and cursor awareness.
+
+| Layer | Technology |
+|---|---|
+| **Frontend** | React, React Router, CodeMirror 5 |
+| **Collaboration** | Yjs (CRDT), y-websocket, y-codemirror |
+| **Backend** | Node.js, Express, Socket.IO |
+| **Styling** | Vanilla CSS with CSS variables (dark/light theme) |
+| **Download** | jszip |
 
 ---
 
 ## 🚀 Running Locally
 
-To run this application locally, you need to start both the React frontend and the Node.js backend.
+```bash
+# 1. Install dependencies
+npm install
 
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-2. **Start the development servers**:
-   ```bash
-   npm run dev
-   ```
-   *Note: This command uses `concurrently` to run both the React development server (`npm start` on port 3000) and the Node.js backend (`npm run server` on port 3001 & 1234).*
+# 2. Start both frontend and backend concurrently
+npm run dev
+```
 
-3. Open your browser and navigate to `http://localhost:3000`.
+- Frontend → `http://localhost:3000`
+- Backend (Socket.IO + Yjs WebSocket) → `http://localhost:3001`
 
 ---
 
-## 🌍 Deployment Guide (Render.com)
+## ☁️ Deployment (Render / Railway)
 
-Because we have refactored the application to run both Socket.IO and the Yjs `y-websocket` server on the **same single port** (Port 3001), deploying this to platforms like [Render](https://render.com) is incredibly simple.
+Since Socket.IO and the Yjs y-websocket server share a **single port (3001)**, deployment is straightforward.
 
-### Render Web Service Deployment Steps:
+**Build command:**
+```bash
+npm install && npm run build
+```
 
-**1. Prepare your Repository:**
-Make sure all your code is pushed to your GitHub/GitLab repository.
+**Start command:**
+```bash
+node server.js
+```
 
-**2. Create a New Web Service:**
-- Log in to your Render dashboard.
-- Click **New +** and select **Web Service**.
-- Connect your GitHub repository.
+**Environment variables:**
+| Variable | Example Value |
+|---|---|
+| `PORT` | `3001` |
+| `CLIENT_ORIGIN` | `https://your-app.onrender.com` |
 
-**3. Configure the Web Service:**
-- **Name**: `collaborative-editor` (or whatever you prefer)
-- **Environment**: `Node`
-- **Build Command**: 
-  ```bash
-  npm install && npm run build
-  ```
-  *(This installs dependencies and builds the production-ready React files into the `build/` folder.)*
-- **Start Command**:
-  ```bash
-  npm run server-only
-  ```
-  *(If you don't have this command, simply use `node server.js`.)*
+> The app serves the React build statically from `server.js` and handles all WebSocket upgrades (Socket.IO + Yjs) on the same port.
 
-**4. Add Environment Variables (Optional but recommended):**
-Under the "Environment" tab, add:
-- `CLIENT_ORIGIN`: Your Render app's URL (e.g., `https://your-app-name.onrender.com`).
+---
 
-**5. Deploy!**
-Click "Create Web Service". Render will automatically build the React app, spin up the Node.js server, and handle all the routing (including WebSockets for both Socket.IO and Yjs) flawlessly over HTTPS!
+## 📸 Layout Overview
+
+```
+┌──────┬───────────────────────────────────────────────────┐
+│ Act. │  Side Panel     │  File Tabs                      │
+│ Bar  │  (Explorer /    │  index.js × App.js ×            │
+│      │   Users)        ├─────────────────────────────────┤
+│  📁  │                 │                                 │
+│  👥  │  File Tree /    │        CodeMirror Editor        │
+│      │  User Cards     │        (Yjs-powered)            │
+│  ⬆️  │                 │                                 │
+│  🗂️  │                 │                                 │
+│  📨  │                 │                                 │
+│  🔑  │                 │                                 │
+│  💾  │                 │                                 │
+└──────┴─────────────────┴─────────────────────────────────┘
+                          [ ☀️ Light ]  [ 🚪 Leave ]  ← top right
+```
+
+---
+
+## 📄 License
+
+MIT
