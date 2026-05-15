@@ -1,5 +1,6 @@
 import React from 'react';
 import Avatar from 'react-avatar';
+import { Crown } from 'lucide-react';
 
 const Client = ({ userName, isAdmin, canWrite, isMe, iAmAdmin, onTogglePermission, onRequestAccess }) => {
     const role = isAdmin ? 'Admin' : canWrite ? 'Editor' : 'Viewer';
@@ -42,7 +43,9 @@ const Client = ({ userName, isAdmin, canWrite, isMe, iAmAdmin, onTogglePermissio
                 )}
                 {/* Admin badge */}
                 {isAdmin && (
-                    <span className="action-btn action-btn--admin">👑 Admin</span>
+                    <span className="action-btn action-btn--admin">
+                        <Crown size={12} /> Admin
+                    </span>
                 )}
             </div>
         </div>
