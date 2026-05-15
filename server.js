@@ -84,6 +84,19 @@ function canWriteToRoom(socket, roomId) {
 }
 
 io.on('connection', (socket) => {
+  socket.use((packet, next) => {
+    const [eventName] = packet;
+
+    if (eventName === ACTIONS.CODE_CHANGE) {
+      const roomId = socketRoomMap[socket.id];
+      if (!roomId || !canWriteToRoom(socket, roomId)) {
+        return;
+      }
+    }
+
+    next();
+  });
+
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
