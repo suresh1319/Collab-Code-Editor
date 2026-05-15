@@ -77,7 +77,27 @@ function getAllConnectedClients(roomId) {
   });
 }
 
+function canWriteToRoom(socket, roomId) {
+  const state = roomState[roomId];
+  if (!state) return false;
+  return state.admin === socket.id || state.permissions[socket.id] === true;
+}
+
 io.on('connection', (socket) => {
+  socket.use((packet, next) => {
+    const [eventName] = packet;
+
+    if (eventName === ACTIONS.CODE_CHANGE) {
+      const roomId = socketRoomMap[socket.id];
+      if (!roomId || !canWriteToRoom(socket, roomId)) {
+        socket.emit('error', { message: 'You do not have permission to edit code in this room.' });
+        return;
+      }
+    }
+
+    next();
+  });
+
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
@@ -152,6 +172,10 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to create files/folders in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     // node: { id, name, type, parentId }
     fs[node.id] = node;
@@ -164,6 +188,10 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_DELETE_NODE, ({ roomId, nodeId }) => {
     if (!roomState[roomId]) return;
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to delete files/folders in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     // Recursively collect all node ids to delete
     const toDelete = [];
@@ -187,6 +215,10 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {
     if (!roomState[roomId]) return;
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to rename files/folders in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     if (fs[nodeId]) {
       fs[nodeId].name = newName;
