@@ -61,6 +61,7 @@ const EditorPage = () => {
     const [fileSystem, setFileSystem] = useState({});
     const [openFiles, setOpenFiles] = useState([]);
     const [activeFileId, setActiveFileId] = useState(null);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
     // Track file contents for download
     const fileContentsRef = useRef({});
@@ -228,7 +229,32 @@ const EditorPage = () => {
         }
     }
 
-    function leaveRoom() { reactNavigator('/'); }
+    function leaveRoom() {
+        // Determine if there are unsaved changes by comparing current contents to initial contents
+        const hasUnsaved = Object.keys(fileContentsRef.current || {}).some(id => (fileContentsRef.current[id] || '') !== (initialContentsRef.current[id] || ''));
+        if (hasUnsaved) {
+            setShowLeaveConfirm(true);
+        } else {
+            reactNavigator('/');
+        }
+    }
+
+    async function handleSaveAndStay() {
+        // Save current editor contents and keep the user in the room
+        const contents = { ...fileContentsRef.current };
+        for (const [fileId, editor] of Object.entries(editorsRef.current)) {
+            if (editor && editor.getValue) contents[fileId] = editor.getValue();
+        }
+        await downloadProject(fileSystem, contents);
+        // mark current contents as initial (saved)
+        Object.entries(contents).forEach(([k, v]) => { initialContentsRef.current[k] = v; });
+        setShowLeaveConfirm(false);
+    }
+
+    function confirmExit() {
+        try { socketRef.current?.disconnect(); } catch (e) { }
+        reactNavigator('/');
+    }
 
     function togglePermission(targetSocketId, currentCanWrite) {
         if (!isAdmin) return;
@@ -595,6 +621,28 @@ const EditorPage = () => {
                         setActivePanel(lastPersistentPanel);
                     }} 
                 />
+            )}
+
+            {/* Confirm Leave Modal */}
+            {showLeaveConfirm && (
+                <div className="modal-overlay">
+                    <div className="unsaved-modal">
+                        <div className="unsaved-icon" aria-hidden="true">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="1.6" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <circle cx="12" cy="17" r="0.5" fill="#ffb347" />
+                            </svg>
+                        </div>
+                        <h2>Unsaved Changes?</h2>
+                        <p>You have unsaved changes. Leaving now may lose local edits. What would you like to do?</p>
+                        <div className="unsaved-actions">
+                            <button className="unsaved-btn save" onClick={handleSaveAndStay}>Save &amp; Stay</button>
+                            <button className="unsaved-btn leave" onClick={confirmExit}>Leave Anyway</button>
+                            <button className="unsaved-btn cancel" onClick={() => setShowLeaveConfirm(false)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Hidden file inputs for upload */}
