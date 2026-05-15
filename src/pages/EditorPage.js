@@ -153,12 +153,23 @@ const EditorPage = () => {
             });
 
             // Receive uploaded file contents from server (for existing collaborators and late joiners)
+            // Show a toast when the server rejects an action due to insufficient permissions
+            socketRef.current.on('error', ({ message }) => {
+                toast.error(message || 'Permission denied.');
+            });
+
             socketRef.current.on(ACTIONS.FS_CONTENTS_SYNC, ({ fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
                     // Merge into initialContentsRef; do NOT overwrite keys that are already
                     // populated by this client's own editor (i.e., already-edited Yjs content
                     // is managed by Yjs — initialContentsRef is only for cold-start injection).
-                    Object.assign(initialContentsRef.current, fileContents);
+                    // Only seed keys that are NOT already present (cold-start only —
+                    // never overwrite content already managed by Yjs editors).
+                    Object.entries(fileContents).forEach(([k, v]) => {
+                        if (!(k in initialContentsRef.current)) {
+                            initialContentsRef.current[k] = v;
+                        }
+                    });
                 }
             });
         };
@@ -172,6 +183,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.FS_SYNC);
                 socketRef.current.off(ACTIONS.FS_CONTENTS_SYNC);
+                socketRef.current.off('error');
             }
         };
     }, []);

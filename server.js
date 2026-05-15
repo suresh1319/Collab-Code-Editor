@@ -199,6 +199,7 @@ io.on('connection', (socket) => {
     const fs = roomState[roomId].fileSystem;
 
     // Merge nodes into file system in the order provided (folders before files)
+    if (!Array.isArray(nodes)) return;
     for (const node of nodes) {
       fs[node.id] = node;
       if (fs[node.parentId]) {
