@@ -149,25 +149,43 @@ const EditorPage = () => {
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs }) => {
                 setFileSystem(fs);
-                // Close tabs for files that no longer exist in the file system
-                // (handles confirmed server-side deletions reactively)
+
+                // Compute next open files and active file outside of updaters
+                // to avoid nesting setState calls inside functional updaters
+                // (React Strict Mode double-invokes updaters to detect impurities).
                 setOpenFiles(prev => {
                     const next = prev.filter(id => fs[id]);
-                    if (next.length < prev.length) {
-                        setActiveFileId(cur => (cur && !fs[cur]) ? (next[0] || null) : cur);
-                    }
-                    // Auto-open the first file if none open
                     if (next.length === 0) {
                         const root = fs['root'];
                         if (root && root.children && root.children.length > 0) {
                             const firstFileId = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFileId) {
-                                setActiveFileId(firstFileId);
-                                return [firstFileId];
-                            }
+                            if (firstFileId) return [firstFileId];
                         }
                     }
                     return next;
+                });
+
+                // Update activeFileId separately — not nested inside setOpenFiles
+                setActiveFileId(cur => {
+                    if (cur && !fs[cur]) {
+                        // Active file was deleted — pick the first surviving open file
+                        // (openFiles state may not be updated yet, so scan fs directly)
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                        return null;
+                    }
+                    // Auto-select first file if nothing is active
+                    if (!cur) {
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                    }
+                    return cur;
                 });
             });
         };
