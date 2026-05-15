@@ -147,7 +147,14 @@ const EditorPage = () => {
             });
 
             // File system sync
-            socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs }) => {
+            socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
+                if (fileContents && typeof fileContents === 'object') {
+                    Object.entries(fileContents).forEach(([k, v]) => {
+                        if (!(k in initialContentsRef.current)) {
+                            initialContentsRef.current[k] = v;
+                        }
+                    });
+                }
                 setFileSystem(fs);
 
                 // Compute next open files and active file outside of updaters
@@ -319,6 +326,9 @@ const EditorPage = () => {
         // and showing a false success toast when the server would reject the operation.
         if (!canWrite) {
             toast.error('You do not have write permission in this room.');
+        // Defensive client-side guard — server also enforces this
+        if (!canWrite) {
+            toast.error('You do not have permission to upload files.');
             return;
         }
 
@@ -344,9 +354,6 @@ const EditorPage = () => {
         };
 
         const fileReadPromises = files.map(async (file) => {
-            if (isBinary(file.name)) return null;
-            const content = await readFileAsText(file);
-
             let parentId = 'root';
             if (isFolder && file.webkitRelativePath) {
                 const parts = file.webkitRelativePath.split('/');
@@ -358,25 +365,35 @@ const EditorPage = () => {
             }
 
             const fileId = uuid();
+            // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
+
+            // Skip content reading for binary files — their node is still created
+            if (isBinary(file.name)) return null;
+            const content = await readFileAsText(file);
             return { fileId, content };
         });
 
         const results = (await Promise.all(fileReadPromises)).filter(Boolean);
 
-        // Emit all creates in dependency order (folders first)
-        for (const node of nodesToCreate) {
-            socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-        }
-
-        // Store initial contents for injection when editor opens
+        // Build fileContents map: { fileId -> textContent }
+        const fileContents = {};
         for (const { fileId, content } of results) {
+            fileContents[fileId] = content;
             initialContentsRef.current[fileId] = content;
         }
 
+        // Count all file nodes (including binary files that were skipped for content reading).
         const fileCount = nodesToCreate.filter(n => n.type === 'file').length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
-        toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
+        socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents }, ({ success, message }) => {
+            if (success) {
+                toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
+            } else {
+                toast.error(message || 'Upload failed.');
+                results.forEach(({ fileId }) => { delete initialContentsRef.current[fileId]; });
+            }
+        });
         setActivePanel(lastPersistentPanel);
     }
 
@@ -440,37 +457,41 @@ const EditorPage = () => {
                     </div>
 
                     <div className="activity-bar-bottom">
-                        <button 
-                            className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('upload');
-                                uploadFileInputRef.current?.click();
-                                // Reset after a delay or on focus (if picker cancelled)
-                                const reset = () => {
-                                    setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
-                                    window.removeEventListener('focus', reset);
-                                };
-                                window.addEventListener('focus', reset);
-                            }} 
-                            title="Upload File(s)"
-                        >
-                            <Upload size={22} strokeWidth={1.5} />
-                        </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('files');
-                                uploadFolderInputRef.current?.click();
-                                const reset = () => {
-                                    setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
-                                    window.removeEventListener('focus', reset);
-                                };
-                                window.addEventListener('focus', reset);
-                            }} 
-                            title="Upload Folder"
-                        >
-                            <FolderUp size={22} strokeWidth={1.5} />
-                        </button>
+                        {canWrite && (
+                            <>
+                                <button 
+                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
+                                    onClick={() => {
+                                        setActivePanel('upload');
+                                        uploadFileInputRef.current?.click();
+                                        // Reset after a delay or on focus (if picker cancelled)
+                                        const reset = () => {
+                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
+                                            window.removeEventListener('focus', reset);
+                                        };
+                                        window.addEventListener('focus', reset);
+                                    }} 
+                                    title="Upload File(s)"
+                                >
+                                    <Upload size={22} strokeWidth={1.5} />
+                                </button>
+                                <button 
+                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
+                                    onClick={() => {
+                                        setActivePanel('files');
+                                        uploadFolderInputRef.current?.click();
+                                        const reset = () => {
+                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
+                                            window.removeEventListener('focus', reset);
+                                        };
+                                        window.addEventListener('focus', reset);
+                                    }} 
+                                    title="Upload Folder"
+                                >
+                                    <FolderUp size={22} strokeWidth={1.5} />
+                                </button>
+                            </>
+                        )}
                         <button 
                             className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {

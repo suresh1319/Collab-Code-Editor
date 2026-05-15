@@ -16,6 +16,7 @@ const ACTIONS = {
     FS_RENAME_NODE: 'fs_rename_node',
     // Server emits this when a read-only user tries a write operation
     PERMISSION_DENIED: 'permission_denied',
+    FS_UPLOAD_BATCH: 'fs_upload_batch',
 };
 
 module.exports = ACTIONS;
