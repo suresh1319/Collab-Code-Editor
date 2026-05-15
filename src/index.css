@@ -8,7 +8,6 @@
   --input-bg: #3a3c4d;
   --input-text: #f8f8f2;
   --box-shadow: rgba(0,0,0,0.3);
-  --accent-color: #007acc;
 }
 
 [data-theme="light"] {
@@ -21,7 +20,6 @@
   --input-bg: #ffffff;
   --input-text: #1c1e29;
   --box-shadow: rgba(0,0,0,0.1);
-  --accent-color: #007acc;
 }
 
 body {
