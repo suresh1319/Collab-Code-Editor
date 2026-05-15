@@ -251,12 +251,18 @@ const EditorPage = () => {
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
         }
-        await downloadProject(fileSystem, contents);
-        toast.success('Project downloaded!');
-        // Revert active icon
-        setTimeout(() => {
-            setActivePanel(lastPersistentPanel);
-        }, 1000);
+        try {
+            await downloadProject(fileSystem, contents);
+            toast.success('Project downloaded!');
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error('Download failed. Please try again.');
+        } finally {
+            // Revert active icon
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
+        }
     }
 
     // ---- Upload handler ----
