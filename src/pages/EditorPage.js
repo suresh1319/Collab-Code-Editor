@@ -329,7 +329,8 @@ const EditorPage = () => {
             initialContentsRef.current[fileId] = content;
         }
 
-        const fileCount = results.length;
+        // Count all file nodes (including binary files that were skipped for content reading).
+        const fileCount = nodesToCreate.filter(n => n.type === 'file').length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
         socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents }, ({ success, message }) => {
             if (success) {

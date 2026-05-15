@@ -179,7 +179,9 @@ io.on('connection', (socket) => {
     if (node && node.parentId && fs[node.parentId]) {
       fs[node.parentId].children = (fs[node.parentId].children || []).filter(c => c !== nodeId);
     }
-    toDelete.forEach(id => delete fs[id]);
+    // Remove from fileSystem and evict any stored contents for deleted nodes.
+    // Without this, late joiners would receive content for files that no longer exist.
+    toDelete.forEach(id => { delete fs[id]; delete roomState[roomId].fileContents[id]; });
     io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
   });
 
