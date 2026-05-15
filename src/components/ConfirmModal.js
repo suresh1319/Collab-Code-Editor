@@ -1,8 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Download, X } from 'lucide-react';
 
 const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const isSubmittingRef = useRef(isSubmitting);
+
+    // Sync the isSubmitting state to a ref to prevent stale closures in the keydown handler
+    useEffect(() => {
+        isSubmittingRef.current = isSubmitting;
+    }, [isSubmitting]);
 
     // Reset submission state whenever modal is reopened
     useEffect(() => {
@@ -16,7 +22,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
         if (!isOpen) return;
 
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Escape' && !isSubmittingRef.current) {
                 onClose();
             }
         };
