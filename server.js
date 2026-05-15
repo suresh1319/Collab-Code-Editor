@@ -89,6 +89,7 @@ io.on('connection', (socket) => {
         admin: socket.id,
         permissions: {},
         fileSystem: createDefaultFileSystem(),
+        fileContents: {},
       };
     }
 
@@ -103,11 +104,52 @@ io.on('connection', (socket) => {
     clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
-    // Send current file system to the joining user
-    socket.emit(ACTIONS.FS_SYNC, { fileSystem: roomState[roomId].fileSystem });
+    // Send current file system AND any stored file contents in one atomic emit.
+    socket.emit(ACTIONS.FS_SYNC, {
+      fileSystem: roomState[roomId].fileSystem,
+      fileContents: roomState[roomId].fileContents,
+    });
   });
 
   // ---- File System Events ----
+  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }, ack) => {
+    const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
+
+    if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
+
+    const fs = roomState[roomId].fileSystem;
+
+    // Merge nodes into file system in the order provided (folders before files)
+    if (!Array.isArray(nodes)) {
+      reply(false, 'Invalid upload payload: nodes must be an array.');
+      return;
+    }
+    for (const node of nodes) {
+      fs[node.id] = node;
+      if (fs[node.parentId]) {
+        if (!fs[node.parentId].children) fs[node.parentId].children = [];
+        // Avoid adding duplicate child references
+        if (!fs[node.parentId].children.includes(node.id)) {
+          fs[node.parentId].children.push(node.id);
+        }
+      }
+    }
+
+    // Store uploaded file contents server-side for late joiners
+    if (fileContents && typeof fileContents === 'object') {
+      Object.assign(roomState[roomId].fileContents, fileContents);
+    }
+
+    // Broadcast updated file tree AND contents atomically in one frame.
+    io.to(roomId).emit(ACTIONS.FS_SYNC, {
+      fileSystem: { ...fs },
+      fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
+    });
+
+    // Acknowledge success to the uploader so the client can show the toast
+    reply(true, '');
+  });
+
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
     const fs = roomState[roomId].fileSystem;
