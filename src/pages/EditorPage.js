@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import {
+    FolderOpen,
+    Users,
+    Upload,
+    FolderUp,
+    KeyRound,
+    Save,
+    Sun,
+    Moon,
+    LogOut,
+    Monitor,
+    ChevronRight,
+    MessageSquare,
+} from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
 import Editor from '../components/Editor';
@@ -19,7 +33,8 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
-    const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | null
+    const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
+    const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
 
     useEffect(() => {
         if (theme === 'light') {
@@ -136,6 +151,16 @@ const EditorPage = () => {
                     return prev;
                 });
             });
+
+            // Receive uploaded file contents from server (for existing collaborators and late joiners)
+            socketRef.current.on(ACTIONS.FS_CONTENTS_SYNC, ({ fileContents }) => {
+                if (fileContents && typeof fileContents === 'object') {
+                    // Merge into initialContentsRef; do NOT overwrite keys that are already
+                    // populated by this client's own editor (i.e., already-edited Yjs content
+                    // is managed by Yjs — initialContentsRef is only for cold-start injection).
+                    Object.assign(initialContentsRef.current, fileContents);
+                }
+            });
         };
         init();
         return () => {
@@ -146,6 +171,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.FS_SYNC);
+                socketRef.current.off(ACTIONS.FS_CONTENTS_SYNC);
             }
         };
     }, []);
@@ -198,6 +224,11 @@ const EditorPage = () => {
             toast.success('Room ID copied!');
         } catch (err) {
             toast.error('Could not copy Room ID');
+        } finally {
+            // Revert active icon after a short delay
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
         }
     }
 
@@ -223,6 +254,10 @@ const EditorPage = () => {
         }
         await downloadProject(fileSystem, contents);
         toast.success('Project downloaded!');
+        // Revert active icon
+        setTimeout(() => {
+            setActivePanel(lastPersistentPanel);
+        }, 1000);
     }
 
     // ---- Upload handler ----
@@ -243,8 +278,17 @@ const EditorPage = () => {
 
     async function handleUploadFiles(e) {
         const files = Array.from(e.target.files || []);
-        if (!files.length) return;
+        if (!files.length) {
+            setActivePanel(lastPersistentPanel);
+            return;
+        }
         e.target.value = '';
+
+        // Defensive client-side guard — server also enforces this
+        if (!canWrite) {
+            toast.error('You do not have permission to upload files.');
+            return;
+        }
 
         const isFolder = files[0].webkitRelativePath && files[0].webkitRelativePath.includes('/');
 
@@ -288,19 +332,22 @@ const EditorPage = () => {
 
         const results = (await Promise.all(fileReadPromises)).filter(Boolean);
 
-        // Emit all creates in dependency order (folders first)
-        for (const node of nodesToCreate) {
-            socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-        }
-
-        // Store initial contents for injection when editor opens
+        // Build fileContents map: { fileId -> textContent }
+        const fileContents = {};
         for (const { fileId, content } of results) {
+            fileContents[fileId] = content;
+            // Also seed our own initialContentsRef so the editor can inject content locally
             initialContentsRef.current[fileId] = content;
         }
+
+        // Send all nodes AND file contents to the server in one batch.
+        // The server merges the tree, stores contents, and broadcasts both to all collaborators.
+        socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents });
 
         const fileCount = results.length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
         toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
+        setActivePanel(lastPersistentPanel);
     }
 
     if (!location.state) return <Navigate to="/" />;
@@ -308,7 +355,30 @@ const EditorPage = () => {
     const activeFile = activeFileId ? fileSystem[activeFileId] : null;
 
     return (
-        <>
+        <div className="app-container">
+            {/* ── Top Navbar ── */}
+            <div className="top-navbar">
+                <div className="top-navbar-left">
+                    <Monitor size={16} className="navbar-room-icon" />
+                    <span className="navbar-room-name">Room: {roomId}</span>
+                    {activeFile && (
+                        <>
+                            <ChevronRight size={14} className="navbar-separator" />
+                            <span className="navbar-file-name">{activeFile.name}</span>
+                        </>
+                    )}
+                </div>
+                <div className="top-navbar-right">
+                    <button className="navbar-icon-btn" onClick={toggleTheme} title="Toggle Theme">
+                        {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
+                    </button>
+                    <button className="navbar-leave-btn" onClick={leaveRoom}>
+                        <LogOut size={14} strokeWidth={2.5} />
+                        <span>Leave Room</span>
+                    </button>
+                </div>
+            </div>
+
             <div className="mainWrap">
                 {/* ── Activity Bar (icon strip) ── */}
                 <div className="activity-bar">
@@ -318,50 +388,115 @@ const EditorPage = () => {
                         </div>
                         <button
                             className={`activity-btn ${activePanel === 'explorer' ? 'activity-btn--active' : ''}`}
-                            onClick={() => setActivePanel(p => p === 'explorer' ? null : 'explorer')}
+                            onClick={() => {
+                                setActivePanel('explorer');
+                                setLastPersistentPanel('explorer');
+                            }}
                             title="Explorer"
                         >
-                            📁
+                            <FolderOpen size={22} strokeWidth={1.5} />
                         </button>
                         <button
                             className={`activity-btn ${activePanel === 'users' ? 'activity-btn--active' : ''}`}
-                            onClick={() => setActivePanel(p => p === 'users' ? null : 'users')}
+                            onClick={() => {
+                                setActivePanel('users');
+                                setLastPersistentPanel('users');
+                            }}
                             title={`Connected Users (${clients.length})`}
                         >
-                            <span className="activity-btn-icon">👥</span>
+                            <Users size={22} strokeWidth={1.5} />
                             {clients.length > 0 && <span className="activity-badge">{clients.length}</span>}
                         </button>
                     </div>
+
                     <div className="activity-bar-bottom">
-                        <button className="activity-btn" onClick={() => uploadFileInputRef.current?.click()} title="Upload File(s)">
-                            ⬆️
+                        {/* Upload buttons are only shown to users with write permission */}
+                        {canWrite && (
+                            <>
+                                <button 
+                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
+                                    onClick={() => {
+                                        setActivePanel('upload');
+                                        uploadFileInputRef.current?.click();
+                                        // Reset after a delay or on focus (if picker cancelled)
+                                        const reset = () => {
+                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
+                                            window.removeEventListener('focus', reset);
+                                        };
+                                        window.addEventListener('focus', reset);
+                                    }} 
+                                    title="Upload File(s)"
+                                >
+                                    <Upload size={22} strokeWidth={1.5} />
+                                </button>
+                                <button 
+                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
+                                    onClick={() => {
+                                        setActivePanel('files');
+                                        uploadFolderInputRef.current?.click();
+                                        const reset = () => {
+                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
+                                            window.removeEventListener('focus', reset);
+                                        };
+                                        window.addEventListener('focus', reset);
+                                    }} 
+                                    title="Upload Folder"
+                                >
+                                    <FolderUp size={22} strokeWidth={1.5} />
+                                </button>
+                            </>
+                        )}
+                        <button 
+                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`} 
+                            onClick={() => {
+                                setActivePanel('share');
+                                setShowInvite(true);
+                            }} 
+                            title="Invite Friends"
+                        >
+                            <MessageSquare size={22} strokeWidth={1.5} />
                         </button>
-                        <button className="activity-btn" onClick={() => uploadFolderInputRef.current?.click()} title="Upload Folder">
-                            🗂️
+                        <button 
+                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`} 
+                            onClick={() => {
+                                setActivePanel('secrets');
+                                copyRoomId();
+                            }} 
+                            title="Copy Room ID"
+                        >
+                            <KeyRound size={22} strokeWidth={1.5} />
                         </button>
-                        <button className="activity-btn" onClick={() => setShowInvite(true)} title="Invite Friends">
-                            📨
-                        </button>
-                        <button className="activity-btn" onClick={copyRoomId} title="Copy Room ID">
-                            🔑
-                        </button>
-                        <button className="activity-btn" onClick={handleDownload} title="Download Project">
-                            💾
+                        <button 
+                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
+                            onClick={() => {
+                                setActivePanel('save');
+                                handleDownload();
+                            }} 
+                            title="Save Project"
+                        >
+                            <Save size={22} strokeWidth={1.5} />
                         </button>
                     </div>
                 </div>
 
                 {/* ── Side Panel ── */}
-                {activePanel && (
+                {['explorer', 'users'].includes(activePanel) && (
                     <div className="side-panel">
                         {activePanel === 'explorer' && (
                             <>
                                 <div className="panel-header">
-                                    <span className="panel-title">📁 EXPLORER</span>
+                                    <span className="panel-title">
+                                        <FolderOpen size={13} className="panel-title-icon" />
+                                        EXPLORER
+                                    </span>
                                     {canWrite && (
                                         <div className="panel-header-actions">
-                                            <button className="panel-header-btn" onClick={() => uploadFileInputRef.current?.click()} title="Upload file(s)">📤 File</button>
-                                            <button className="panel-header-btn" onClick={() => uploadFolderInputRef.current?.click()} title="Upload folder">📂 Folder</button>
+                                            <button className="panel-header-btn" onClick={() => uploadFileInputRef.current?.click()} title="Upload file(s)">
+                                                <Upload size={11} /> File
+                                            </button>
+                                            <button className="panel-header-btn" onClick={() => uploadFolderInputRef.current?.click()} title="Upload folder">
+                                                <FolderUp size={11} /> Folder
+                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -382,7 +517,10 @@ const EditorPage = () => {
                         {activePanel === 'users' && (
                             <>
                                 <div className="panel-header">
-                                    <span className="panel-title">👥 CONNECTED {isAdmin ? <span className="panel-admin-tag">Admin</span> : ''}</span>
+                                    <span className="panel-title">
+                                        <Users size={13} className="panel-title-icon" />
+                                        CONNECTED {isAdmin ? <span className="panel-admin-tag">Admin</span> : ''}
+                                    </span>
                                 </div>
                                 <div className="panel-body">
                                     <div className="clientsList">
@@ -438,7 +576,7 @@ const EditorPage = () => {
                                     <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
                                 </div>
                                 <p>Select a file from the explorer to start editing</p>
-                                {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files & folders</p>}
+                                {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                             </div>
                         </div>
                     )}
@@ -449,7 +587,15 @@ const EditorPage = () => {
                 </div>
             </div>
 
-            {showInvite && <InviteModal roomId={roomId} onClose={() => setShowInvite(false)} />}
+            {showInvite && (
+                <InviteModal 
+                    roomId={roomId} 
+                    onClose={() => {
+                        setShowInvite(false);
+                        setActivePanel(lastPersistentPanel);
+                    }} 
+                />
+            )}
 
             {/* Hidden file inputs for upload */}
             <input
@@ -468,15 +614,7 @@ const EditorPage = () => {
                 style={{ display: 'none' }}
                 onChange={handleUploadFiles}
             />
-
-            <div className="top-right-bar">
-                <button className="theme-toggle-fixed" onClick={toggleTheme} title="Toggle Theme">
-                    <span className="toggle-track"><span className="toggle-thumb"></span></span>
-                    <span className="toggle-label">{theme === 'light' ? '☀️ Light' : '🌙 Dark'}</span>
-                </button>
-                <button className="btn leaveBtn leave-fixed" onClick={leaveRoom}>🚪 Leave</button>
-            </div>
-        </>
+        </div>
     );
 };
 

@@ -7,7 +7,7 @@ const path = require('path');
 const ACTIONS = require('./src/Actions');
 const WebSocket = require('ws');
 const setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 
 require('dotenv').config();
 
@@ -52,8 +52,17 @@ const io = new Server(server, {
 
 const userSocketMap = {};
 const socketRoomMap = {};
-// roomState: { admin, permissions, fileSystem }
+// roomState: { admin, permissions, fileSystem, fileContents }
 const roomState = {};
+
+// ---- Permission helper ----
+// Returns true if socket is the room admin OR has been granted write access.
+function canWriteToRoom(socket, roomId) {
+  const room = roomState[roomId];
+  if (!room) return false;
+  if (room.admin === socket.id) return true;
+  return room.permissions?.[socket.id] === true;
+}
 
 // ---- File System Helpers ----
 function createDefaultFileSystem() {
@@ -89,6 +98,7 @@ io.on('connection', (socket) => {
         admin: socket.id,
         permissions: {},
         fileSystem: createDefaultFileSystem(),
+        fileContents: {}, // stores uploaded file contents keyed by fileId
       };
     }
 
@@ -105,11 +115,21 @@ io.on('connection', (socket) => {
 
     // Send current file system to the joining user
     socket.emit(ACTIONS.FS_SYNC, { fileSystem: roomState[roomId].fileSystem });
+
+    // Send any previously uploaded file contents so late joiners receive them
+    if (Object.keys(roomState[roomId].fileContents).length > 0) {
+      socket.emit(ACTIONS.FS_CONTENTS_SYNC, { fileContents: roomState[roomId].fileContents });
+    }
   });
 
   // ---- File System Events ----
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     // node: { id, name, type, parentId }
     fs[node.id] = node;
@@ -122,6 +142,11 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_DELETE_NODE, ({ roomId, nodeId }) => {
     if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     // Recursively collect all node ids to delete
     const toDelete = [];
@@ -137,16 +162,65 @@ io.on('connection', (socket) => {
     if (node && node.parentId && fs[node.parentId]) {
       fs[node.parentId].children = (fs[node.parentId].children || []).filter(c => c !== nodeId);
     }
-    toDelete.forEach(id => delete fs[id]);
+    // Also clean up any stored file contents for deleted nodes
+    toDelete.forEach(id => {
+      delete fs[id];
+      delete roomState[roomId].fileContents[id];
+    });
     io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
   });
 
   socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {
     if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     if (fs[nodeId]) {
       fs[nodeId].name = newName;
       io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+    }
+  });
+
+  // ---- Upload Batch Event ----
+  // Receives nodes (folders + files) and their text contents in one shot.
+  // This ensures all collaborators (including late joiners) get both the file
+  // tree structure AND the actual file content — fixing the content-not-syncing bug.
+  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }) => {
+    if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
+      return;
+    }
+
+    const fs = roomState[roomId].fileSystem;
+
+    // Merge nodes into file system in the order provided (folders before files)
+    for (const node of nodes) {
+      fs[node.id] = node;
+      if (fs[node.parentId]) {
+        if (!fs[node.parentId].children) fs[node.parentId].children = [];
+        // Avoid adding duplicate child references
+        if (!fs[node.parentId].children.includes(node.id)) {
+          fs[node.parentId].children.push(node.id);
+        }
+      }
+    }
+
+    // Store uploaded file contents server-side for late joiners
+    if (fileContents && typeof fileContents === 'object') {
+      Object.assign(roomState[roomId].fileContents, fileContents);
+    }
+
+    // Broadcast updated file tree to everyone in the room
+    io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+
+    // Broadcast the new file contents to all existing collaborators
+    if (fileContents && Object.keys(fileContents).length > 0) {
+      io.to(roomId).emit(ACTIONS.FS_CONTENTS_SYNC, { fileContents });
     }
   });
 
