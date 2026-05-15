@@ -353,12 +353,19 @@ const EditorPage = () => {
         }
 
         // Send all nodes AND file contents to the server in one batch.
-        // The server merges the tree, stores contents, and broadcasts both to all collaborators.
-        socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents });
-
+        // Toast is shown only inside the ack callback — after the server confirms
+        // the upload was accepted and broadcast, preventing contradictory success+error UX.
         const fileCount = results.length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
-        toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
+        socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents }, ({ success, message }) => {
+            if (success) {
+                toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
+            } else {
+                toast.error(message || 'Upload failed.');
+                // Roll back the local initialContentsRef seeds on failure
+                results.forEach(({ fileId }) => { delete initialContentsRef.current[fileId]; });
+            }
+        });
         setActivePanel(lastPersistentPanel);
     }
 

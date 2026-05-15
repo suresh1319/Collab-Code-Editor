@@ -188,18 +188,25 @@ io.on('connection', (socket) => {
   // Receives nodes (folders + files) and their text contents in one shot.
   // This ensures all collaborators (including late joiners) get both the file
   // tree structure AND the actual file content — fixing the content-not-syncing bug.
-  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }) => {
-    if (!roomState[roomId]) return;
+  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }, ack) => {
+    const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
+
+    if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
       socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
+      reply(false, 'You do not have permission to upload files in this room.');
       return;
     }
 
     const fs = roomState[roomId].fileSystem;
 
     // Merge nodes into file system in the order provided (folders before files)
-    if (!Array.isArray(nodes)) return;
+    if (!Array.isArray(nodes)) {
+      socket.emit('error', { message: 'Invalid upload payload: nodes must be an array.' });
+      reply(false, 'Invalid upload payload: nodes must be an array.');
+      return;
+    }
     for (const node of nodes) {
       fs[node.id] = node;
       if (fs[node.parentId]) {
@@ -223,6 +230,9 @@ io.on('connection', (socket) => {
     if (fileContents && Object.keys(fileContents).length > 0) {
       io.to(roomId).emit(ACTIONS.FS_CONTENTS_SYNC, { fileContents });
     }
+
+    // Acknowledge success to the uploader so the client can show the toast
+    reply(true, '');
   });
 
   // ---- Access Control ----
