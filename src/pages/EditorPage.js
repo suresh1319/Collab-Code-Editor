@@ -20,6 +20,7 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
@@ -33,6 +34,7 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
+    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
 
@@ -244,6 +246,7 @@ const EditorPage = () => {
     }
 
     async function handleDownload() {
+        setShowConfirmDownload(false);
         const contents = { ...fileContentsRef.current };
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
@@ -470,7 +473,7 @@ const EditorPage = () => {
                             className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {
                                 setActivePanel('save');
-                                handleDownload();
+                                setShowConfirmDownload(true);
                             }} 
                             title="Save Project"
                         >
@@ -594,6 +597,19 @@ const EditorPage = () => {
                         setShowInvite(false);
                         setActivePanel(lastPersistentPanel);
                     }} 
+                />
+            )}
+
+            {showConfirmDownload && (
+                <ConfirmModal
+                    isOpen={showConfirmDownload}
+                    title="Confirm Download"
+                    message="Do you want to download this project?"
+                    onConfirm={handleDownload}
+                    onClose={() => {
+                        setShowConfirmDownload(false);
+                        setActivePanel(lastPersistentPanel);
+                    }}
                 />
             )}
 
