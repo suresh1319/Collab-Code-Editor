@@ -90,6 +90,7 @@ io.on('connection', (socket) => {
     if (eventName === ACTIONS.CODE_CHANGE) {
       const roomId = socketRoomMap[socket.id];
       if (!roomId || !canWriteToRoom(socket, roomId)) {
+        socket.emit('error', { message: 'You do not have permission to edit code in this room.' });
         return;
       }
     }
