@@ -199,6 +199,7 @@ io.on('connection', (socket) => {
       return;
       return;
     }
+    }
 
     const fs = roomState[roomId].fileSystem;
 
