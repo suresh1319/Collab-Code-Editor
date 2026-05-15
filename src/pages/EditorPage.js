@@ -273,6 +273,12 @@ const EditorPage = () => {
         }
         e.target.value = '';
 
+        // Defensive client-side guard — server also enforces this
+        if (!canWrite) {
+            toast.error('You do not have permission to upload files.');
+            return;
+        }
+
         const isFolder = files[0].webkitRelativePath && files[0].webkitRelativePath.includes('/');
 
         // Build a path→nodeId map to avoid duplicate folder creation
@@ -391,37 +397,41 @@ const EditorPage = () => {
                     </div>
 
                     <div className="activity-bar-bottom">
-                        <button 
-                            className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('upload');
-                                uploadFileInputRef.current?.click();
-                                // Reset after a delay or on focus (if picker cancelled)
-                                const reset = () => {
-                                    setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
-                                    window.removeEventListener('focus', reset);
-                                };
-                                window.addEventListener('focus', reset);
-                            }} 
-                            title="Upload File(s)"
-                        >
-                            <Upload size={22} strokeWidth={1.5} />
-                        </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('files');
-                                uploadFolderInputRef.current?.click();
-                                const reset = () => {
-                                    setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
-                                    window.removeEventListener('focus', reset);
-                                };
-                                window.addEventListener('focus', reset);
-                            }} 
-                            title="Upload Folder"
-                        >
-                            <FolderUp size={22} strokeWidth={1.5} />
-                        </button>
+                        {canWrite && (
+                            <>
+                                <button 
+                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
+                                    onClick={() => {
+                                        setActivePanel('upload');
+                                        uploadFileInputRef.current?.click();
+                                        // Reset after a delay or on focus (if picker cancelled)
+                                        const reset = () => {
+                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
+                                            window.removeEventListener('focus', reset);
+                                        };
+                                        window.addEventListener('focus', reset);
+                                    }} 
+                                    title="Upload File(s)"
+                                >
+                                    <Upload size={22} strokeWidth={1.5} />
+                                </button>
+                                <button 
+                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
+                                    onClick={() => {
+                                        setActivePanel('files');
+                                        uploadFolderInputRef.current?.click();
+                                        const reset = () => {
+                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
+                                            window.removeEventListener('focus', reset);
+                                        };
+                                        window.addEventListener('focus', reset);
+                                    }} 
+                                    title="Upload Folder"
+                                >
+                                    <FolderUp size={22} strokeWidth={1.5} />
+                                </button>
+                            </>
+                        )}
                         <button 
                             className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {
