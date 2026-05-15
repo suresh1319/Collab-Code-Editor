@@ -133,8 +133,18 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
-            // File system sync
-            socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs }) => {
+            // File system sync — payload now includes fileContents so both arrive
+            // in one atomic frame, eliminating the race where Editor mounts before
+            // FS_CONTENTS_SYNC has had a chance to seed initialContentsRef.
+            socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
+                // Seed contents first — before any state update that could trigger a render
+                if (fileContents && typeof fileContents === 'object') {
+                    Object.entries(fileContents).forEach(([k, v]) => {
+                        if (!(k in initialContentsRef.current)) {
+                            initialContentsRef.current[k] = v;
+                        }
+                    });
+                }
                 setFileSystem(fs);
                 // Auto-open the first file if none open
                 setOpenFiles(prev => {

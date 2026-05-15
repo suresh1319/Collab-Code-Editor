@@ -113,13 +113,13 @@ io.on('connection', (socket) => {
     clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
-    // Send current file system to the joining user
-    socket.emit(ACTIONS.FS_SYNC, { fileSystem: roomState[roomId].fileSystem });
-
-    // Send any previously uploaded file contents so late joiners receive them
-    if (Object.keys(roomState[roomId].fileContents).length > 0) {
-      socket.emit(ACTIONS.FS_CONTENTS_SYNC, { fileContents: roomState[roomId].fileContents });
-    }
+    // Send current file system AND any stored file contents in one atomic emit.
+    // Combining both into a single frame eliminates the race where FS_SYNC triggers
+    // an Editor mount before FS_CONTENTS_SYNC has seeded initialContentsRef.
+    socket.emit(ACTIONS.FS_SYNC, {
+      fileSystem: roomState[roomId].fileSystem,
+      fileContents: roomState[roomId].fileContents,
+    });
   });
 
   // ---- File System Events ----
