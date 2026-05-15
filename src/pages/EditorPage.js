@@ -21,7 +21,6 @@ import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
 import { initSocket } from '../socket';
-import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
 import {
     useLocation,
@@ -239,16 +238,42 @@ const EditorPage = () => {
         }
     }
 
-    async function handleSaveAndStay() {
-        // Save current editor contents and keep the user in the room
+    function collectCurrentContents() {
         const contents = { ...fileContentsRef.current };
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
         }
-        await downloadProject(fileSystem, contents);
-        // mark current contents as initial (saved)
-        Object.entries(contents).forEach(([k, v]) => { initialContentsRef.current[k] = v; });
-        setShowLeaveConfirm(false);
+        return contents;
+    }
+
+    async function saveContentsToServer() {
+        const contents = collectCurrentContents();
+
+        return new Promise((resolve) => {
+            if (!socketRef.current) {
+                toast.error('Socket is not connected.');
+                resolve(false);
+                return;
+            }
+
+            socketRef.current.emit(ACTIONS.FS_SAVE, { roomId, fileContents: contents }, ({ success, message }) => {
+                if (success) {
+                    Object.entries(contents).forEach(([k, v]) => {
+                        initialContentsRef.current[k] = v;
+                        fileContentsRef.current[k] = v;
+                    });
+                    toast.success('Project saved on server!');
+                } else {
+                    toast.error(message || 'Save failed.');
+                }
+                resolve(success);
+            });
+        });
+    }
+
+    async function handleSaveAndStay() {
+        const saved = await saveContentsToServer();
+        if (saved) setShowLeaveConfirm(false);
     }
 
     function confirmExit() {
@@ -267,19 +292,6 @@ const EditorPage = () => {
             socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
             toast.success('Request sent to admin!');
         }
-    }
-
-    async function handleDownload() {
-        const contents = { ...fileContentsRef.current };
-        for (const [fileId, editor] of Object.entries(editorsRef.current)) {
-            if (editor && editor.getValue) contents[fileId] = editor.getValue();
-        }
-        await downloadProject(fileSystem, contents);
-        toast.success('Project downloaded!');
-        // Revert active icon
-        setTimeout(() => {
-            setActivePanel(lastPersistentPanel);
-        }, 1000);
     }
 
     // ---- Upload handler ----
@@ -496,7 +508,10 @@ const EditorPage = () => {
                             className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {
                                 setActivePanel('save');
-                                handleDownload();
+                                saveContentsToServer();
+                                setTimeout(() => {
+                                    setActivePanel(lastPersistentPanel);
+                                }, 1000);
                             }} 
                             title="Save Project"
                         >
