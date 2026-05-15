@@ -197,8 +197,6 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
-      return;
-    }
     }
 
     const fs = roomState[roomId].fileSystem;
@@ -225,7 +223,10 @@ io.on('connection', (socket) => {
       Object.assign(roomState[roomId].fileContents, fileContents);
     }
 
-    // Broadcast updated file tree AND contents to everyone in the room atomically
+    // Broadcast updated file tree AND contents atomically in one frame.
+    // Mirrors the JOIN-path fix: bundling both into FS_SYNC ensures the client's
+    // FS_SYNC handler seeds initialContentsRef before setFileSystem triggers a render,
+    // eliminating the race for all users already in the room when a file is uploaded.
     io.to(roomId).emit(ACTIONS.FS_SYNC, {
       fileSystem: { ...fs },
       fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
