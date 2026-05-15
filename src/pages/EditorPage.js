@@ -302,9 +302,6 @@ const EditorPage = () => {
         };
 
         const fileReadPromises = files.map(async (file) => {
-            if (isBinary(file.name)) return null;
-            const content = await readFileAsText(file);
-
             let parentId = 'root';
             if (isFolder && file.webkitRelativePath) {
                 const parts = file.webkitRelativePath.split('/');
@@ -316,7 +313,12 @@ const EditorPage = () => {
             }
 
             const fileId = uuid();
+            // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
+
+            // Skip content reading for binary files — their node is still created
+            if (isBinary(file.name)) return null;
+            const content = await readFileAsText(file);
             return { fileId, content };
         });
 
