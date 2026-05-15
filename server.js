@@ -197,6 +197,7 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
+      return;
     }
 
     const fs = roomState[roomId].fileSystem;
