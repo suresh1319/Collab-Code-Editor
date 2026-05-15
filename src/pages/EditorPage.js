@@ -133,17 +133,31 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
-            // Show a toast when the server rejects an action due to insufficient permissions
-            socketRef.current.on('error', ({ message }) => {
-                toast.error(message || 'Permission denied.');
+            // Show a toast when the server rejects an action due to insufficient permissions.
+            // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
+            // reserved 'error' event which may fire with different payload shapes.
+            socketRef.current.on(ACTIONS.PERMISSION_DENIED, (payload) => {
+                const message =
+                    typeof payload === 'string'
+                        ? payload
+                        : payload && typeof payload === 'object' && 'message' in payload
+                            ? payload.message
+                            : 'Permission denied.';
+                toast.error(message);
             });
 
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs }) => {
                 setFileSystem(fs);
-                // Auto-open the first file if none open
+                // Close tabs for files that no longer exist in the file system
+                // (handles confirmed server-side deletions reactively)
                 setOpenFiles(prev => {
-                    if (prev.length === 0) {
+                    const next = prev.filter(id => fs[id]);
+                    if (next.length < prev.length) {
+                        setActiveFileId(cur => (cur && !fs[cur]) ? (next[0] || null) : cur);
+                    }
+                    // Auto-open the first file if none open
+                    if (next.length === 0) {
                         const root = fs['root'];
                         if (root && root.children && root.children.length > 0) {
                             const firstFileId = root.children.find(id => fs[id]?.type === 'file');
@@ -153,7 +167,7 @@ const EditorPage = () => {
                             }
                         }
                     }
-                    return prev;
+                    return next;
                 });
             });
         };
@@ -166,26 +180,30 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.FS_SYNC);
-                socketRef.current.off('error');
+                socketRef.current.off(ACTIONS.PERMISSION_DENIED);
             }
         };
     }, []);
 
     // ---- File system event handlers ----
+    // Each handler checks canWrite before emitting to avoid sending events
+    // that the server will reject, preventing false success states.
     const handleCreateNode = useCallback((node) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleDeleteNode = useCallback((nodeId) => {
-        // Close tab if open
-        setOpenFiles(prev => prev.filter(id => id !== nodeId));
-        setActiveFileId(prev => prev === nodeId ? null : prev);
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
+        // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
+        // to confirm the deletion, preventing stale UI if the server rejects.
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_RENAME_NODE, { roomId, nodeId, newName });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleFileClick = useCallback((fileId) => {
         setActiveFileId(fileId);

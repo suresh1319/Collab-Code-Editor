@@ -130,7 +130,7 @@ io.on('connection', (socket) => {
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to create files/folders in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to create files/folders in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -146,7 +146,7 @@ io.on('connection', (socket) => {
   socket.on(ACTIONS.FS_DELETE_NODE, ({ roomId, nodeId }) => {
     if (!roomState[roomId]) return;
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to delete files/folders in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to delete files/folders in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -171,7 +171,7 @@ io.on('connection', (socket) => {
   socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {
     if (!roomState[roomId]) return;
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to rename files/folders in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to rename files/folders in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
