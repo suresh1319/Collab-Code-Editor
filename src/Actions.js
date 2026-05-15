@@ -16,8 +16,6 @@ const ACTIONS = {
     FS_RENAME_NODE: 'fs_rename_node',
     // Uploads: sends nodes + file contents in one batch so content syncs to all collaborators
     FS_UPLOAD_BATCH: 'fs_upload_batch',
-    // Server sends stored file contents to a joining user
-    FS_CONTENTS_SYNC: 'fs_contents_sync',
 };
 
 module.exports = ACTIONS;
