@@ -279,6 +279,13 @@ const EditorPage = () => {
         }
         e.target.value = '';
 
+        // Client-side permission guard — prevents emitting FS_CREATE_NODE unconditionally
+        // and showing a false success toast when the server would reject the operation.
+        if (!canWrite) {
+            toast.error('You do not have write permission in this room.');
+            return;
+        }
+
         const isFolder = files[0].webkitRelativePath && files[0].webkitRelativePath.includes('/');
 
         // Build a path→nodeId map to avoid duplicate folder creation
@@ -331,7 +338,7 @@ const EditorPage = () => {
             initialContentsRef.current[fileId] = content;
         }
 
-        const fileCount = results.length;
+        const fileCount = nodesToCreate.filter(n => n.type === 'file').length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
         toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
         setActivePanel(lastPersistentPanel);
