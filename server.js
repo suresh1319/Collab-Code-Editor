@@ -225,13 +225,11 @@ io.on('connection', (socket) => {
       Object.assign(roomState[roomId].fileContents, fileContents);
     }
 
-    // Broadcast updated file tree to everyone in the room
-    io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
-
-    // Broadcast the new file contents to all existing collaborators
-    if (fileContents && Object.keys(fileContents).length > 0) {
-      io.to(roomId).emit(ACTIONS.FS_CONTENTS_SYNC, { fileContents });
-    }
+    // Broadcast updated file tree AND contents to everyone in the room atomically
+    io.to(roomId).emit(ACTIONS.FS_SYNC, {
+      fileSystem: { ...fs },
+      fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
+    });
 
     // Acknowledge success to the uploader so the client can show the toast
     reply(true, '');
