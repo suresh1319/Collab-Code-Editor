@@ -13,6 +13,9 @@ import {
     Monitor,
     ChevronRight,
     MessageSquare,
+    HelpCircle,
+    Bell,
+    Play
 } from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
@@ -20,6 +23,9 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
+import Preview from '../components/Preview';
+import SupportModal from '../components/SupportModal';
+import EditRequestsPanel from '../components/EditRequestsPanel';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
@@ -33,6 +39,10 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
+    const [showSupport, setShowSupport] = useState(false);
+    const [showPreview, setShowPreview] = useState(true);
+    const [editRequests, setEditRequests] = useState([]);
+    const [lastChangeTime, setLastChangeTime] = useState(Date.now());
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
 
@@ -133,6 +143,11 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
+            socketRef.current.on(ACTIONS.RECEIVE_CODE_EDIT, (request) => {
+                setEditRequests(prev => [...prev, request]);
+                toast.success(`${request.userName} sent an edit request on ${request.fileName}`);
+            });
+
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
@@ -167,6 +182,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DISCONNECTED);
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
+                socketRef.current.off(ACTIONS.RECEIVE_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
             }
         };
@@ -208,6 +224,7 @@ const EditorPage = () => {
 
     const handleCodeChange = useCallback((fileId, value) => {
         fileContentsRef.current[fileId] = value;
+        setLastChangeTime(Date.now());
     }, []);
 
     const handleEditorReady = useCallback((fileId, editorInstance) => {
@@ -242,6 +259,26 @@ const EditorPage = () => {
             toast.success('Request sent to admin!');
         }
     }
+
+    const handleSendEditRequest = (req) => {
+        socketRef.current.emit(ACTIONS.REQUEST_CODE_EDIT, {
+            roomId,
+            fileId: req.fileId,
+            fileName: req.fileName,
+            message: req.message,
+            userName: location.state?.userName
+        });
+    };
+
+    const handleApproveRequest = (id) => {
+        setEditRequests(prev => prev.filter(r => r.id !== id));
+        toast.success("Request approved.");
+    };
+
+    const handleDenyRequest = (id) => {
+        setEditRequests(prev => prev.filter(r => r.id !== id));
+        toast.error("Request denied.");
+    };
 
     async function handleDownload() {
         const contents = { ...fileContentsRef.current };
@@ -370,6 +407,9 @@ const EditorPage = () => {
                     )}
                 </div>
                 <div className="top-navbar-right">
+                    <button className="navbar-icon-btn" onClick={() => setShowPreview(!showPreview)} title="Toggle Preview">
+                        <Play size={15} /> <span style={{ marginLeft: '5px', fontSize: '13px' }}>Preview</span>
+                    </button>
                     <button className="navbar-icon-btn" onClick={toggleTheme} title="Toggle Theme">
                         {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
                     </button>
@@ -407,6 +447,17 @@ const EditorPage = () => {
                         >
                             <Users size={22} strokeWidth={1.5} />
                             {clients.length > 0 && <span className="activity-badge">{clients.length}</span>}
+                        </button>
+                        <button
+                            className={`activity-btn ${activePanel === 'requests' ? 'activity-btn--active' : ''}`}
+                            onClick={() => {
+                                setActivePanel('requests');
+                                setLastPersistentPanel('requests');
+                            }}
+                            title="Edit Requests"
+                        >
+                            <Bell size={22} strokeWidth={1.5} />
+                            {editRequests.length > 0 && <span className="activity-badge" style={{ backgroundColor: '#ff5555' }}>{editRequests.length}</span>}
                         </button>
                     </div>
 
@@ -476,11 +527,21 @@ const EditorPage = () => {
                         >
                             <Save size={22} strokeWidth={1.5} />
                         </button>
+                        <button 
+                            className={`activity-btn ${activePanel === 'support' ? 'activity-btn--active' : ''}`} 
+                            onClick={() => {
+                                setShowSupport(true);
+                                setActivePanel('support');
+                            }} 
+                            title="Support & Help"
+                        >
+                            <HelpCircle size={22} strokeWidth={1.5} />
+                        </button>
                     </div>
                 </div>
 
                 {/* ── Side Panel ── */}
-                {['explorer', 'users'].includes(activePanel) && (
+                {['explorer', 'users', 'requests'].includes(activePanel) && (
                     <div className="side-panel">
                         {activePanel === 'explorer' && (
                             <>
@@ -540,6 +601,17 @@ const EditorPage = () => {
                                 </div>
                             </>
                         )}
+                        {activePanel === 'requests' && (
+                            <EditRequestsPanel 
+                                requests={editRequests}
+                                onApprove={handleApproveRequest}
+                                onDeny={handleDenyRequest}
+                                onSendRequest={handleSendEditRequest}
+                                canWrite={canWrite}
+                                fileSystem={fileSystem}
+                                activeFileId={activeFileId}
+                            />
+                        )}
                     </div>
                 )}
 
@@ -554,36 +626,66 @@ const EditorPage = () => {
                         onTabClose={handleTabClose}
                     />
 
-                    {/* Editor */}
-                    {socketReady && activeFileId && activeFile ? (
-                        <Editor
-                            key={activeFileId}
-                            socketRef={socketRef}
-                            roomId={roomId}
-                            fileId={activeFileId}
-                            fileName={activeFile.name}
-                            onCodeChange={handleCodeChange}
-                            onEditorReady={handleEditorReady}
-                            userName={location.state?.userName}
-                            canWrite={canWrite}
-                            editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
-                            initialContent={initialContentsRef.current[activeFileId] || ''}
-                        />
-                    ) : (
-                        <div className="editor-empty">
-                            <div className="editor-empty-inner">
-                                <div className="editor-empty-logo">
-                                    <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                    {/* Editor & Preview Split */}
+                    <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr', 
+                        flex: 1, 
+                        minHeight: 0,
+                        overflow: 'hidden' 
+                    }}>
+                        <div style={{ 
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                            borderRight: showPreview ? '1px solid #44475a' : 'none'
+                        }}>
+                            {socketReady && activeFileId && activeFile ? (
+                                <Editor
+                                    key={activeFileId}
+                                    socketRef={socketRef}
+                                    roomId={roomId}
+                                    fileId={activeFileId}
+                                    fileName={activeFile.name}
+                                    onCodeChange={handleCodeChange}
+                                    onEditorReady={handleEditorReady}
+                                    userName={location.state?.userName}
+                                    canWrite={canWrite}
+                                    editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                                    initialContent={initialContentsRef.current[activeFileId] || ''}
+                                />
+                            ) : (
+                                <div className="editor-empty">
+                                    <div className="editor-empty-inner">
+                                        <div className="editor-empty-logo">
+                                            <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                                        </div>
+                                        <p>Select a file from the explorer to start editing</p>
+                                        {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
+                                    </div>
                                 </div>
-                                <p>Select a file from the explorer to start editing</p>
-                                {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
-                            </div>
-                        </div>
-                    )}
+                            )}
 
-                    {!canWrite && activeFileId && (
-                        <div className="readonly-badge">Read-Only Mode</div>
-                    )}
+                            {!canWrite && activeFileId && (
+                                <div className="readonly-badge">Read-Only Mode</div>
+                            )}
+                        </div>
+
+                        {showPreview && (
+                            <div style={{ 
+                                overflow: 'hidden',
+                                backgroundColor: '#fff',
+                                height: '100%'
+                            }}>
+                                <Preview 
+                                    fileSystem={fileSystem} 
+                                    fileContents={fileContentsRef.current} 
+                                    activeFileId={activeFileId} 
+                                    lastChangeTime={lastChangeTime}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -592,6 +694,15 @@ const EditorPage = () => {
                     roomId={roomId} 
                     onClose={() => {
                         setShowInvite(false);
+                        setActivePanel(lastPersistentPanel);
+                    }} 
+                />
+            )}
+
+            {showSupport && (
+                <SupportModal 
+                    onClose={() => {
+                        setShowSupport(false);
                         setActivePanel(lastPersistentPanel);
                     }} 
                 />
