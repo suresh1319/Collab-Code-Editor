@@ -179,22 +179,135 @@
 }
 
 /* ---- IDE Layout ---- */
-.mainWrap {
+.app-container {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
+}
+.mainWrap {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ---- Top Navbar ---- */
+.top-navbar {
+  height: 40px;
+  min-height: 40px;
+  background: var(--aside-bg);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 50;
+}
+.top-navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+}
+.navbar-room-icon {
+  opacity: 0.6;
+}
+.navbar-room-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.navbar-separator {
+  opacity: 0.4;
+}
+.navbar-file-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+.top-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-color);
+}
+.navbar-collaborators {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.navbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-color);
+  margin: 0 4px;
+}
+.navbar-icon-btn {
+  background: transparent;
+  border: none;
+  color: #E6EAF1;
+  opacity: 0.8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  transition: opacity 0.15s, background 0.15s;
+}
+.navbar-icon-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+.navbar-users-btn {
+  position: relative;
+}
+.top-activity-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #22C55E;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  min-width: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.navbar-leave-btn {
+  background-color: #EF4444;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.navbar-leave-btn:hover {
+  background-color: #DC2626;
 }
 
 /* ---- Activity Bar ---- */
 .activity-bar {
-  width: 52px;
-  min-width: 52px;
+  width: 58px;
+  min-width: 58px;
   background: var(--aside-bg);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  padding: 12px 0;
   border-right: 1px solid var(--border-color);
   z-index: 20;
 }
@@ -216,43 +329,49 @@
   position: relative;
   background: transparent;
   border: none;
-  color: var(--text-color);
+  color: #E6EAF1;
   font-size: 1.2rem;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s;
+  transition: background 0.15s, color 0.15s;
+  margin: 4px 0;
+}
+.activity-btn svg {
+  flex-shrink: 0;
 }
 .activity-btn:hover {
-  opacity: 0.9;
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.08);
 }
 .activity-btn--active {
-  opacity: 1;
-  background: rgba(74, 237, 136, 0.12);
-  border-left: 2px solid #4aed88;
+  background: #2563EB;
+  color: #FFFFFF;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+}
+.activity-btn--active svg {
+  color: #FFFFFF;
 }
 .activity-btn-icon { line-height: 1; }
 .activity-badge {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: #4aed88;
-  color: #1c1e29;
-  font-size: 0.55rem;
-  font-weight: 800;
-  border-radius: 10px;
+  background: #22C55E;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 9999px;
   min-width: 14px;
   height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 3px;
+  padding: 0 4px;
+  z-index: 5;
 }
 
 /* ---- Side Panel ---- */
@@ -278,6 +397,13 @@
   text-transform: uppercase;
   color: var(--text-color);
   opacity: 0.5;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.panel-title-icon {
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 .panel-header {
   padding: 10px 14px 8px;
@@ -305,6 +431,9 @@
   opacity: 0.7;
   transition: all 0.15s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .panel-header-btn:hover {
   opacity: 1;
@@ -463,6 +592,9 @@
 .action-btn--admin {
   border-color: #ffd700;
   cursor: default;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 /* old client class (no longer used but kept for safety) */
 .client {
@@ -473,6 +605,9 @@
 .leaveBtn {
   background-color: #ff5555;
   color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .leaveBtn:hover {
   background-color: #c0392b;
@@ -480,37 +615,12 @@
 }
 .leave-fixed {
   width: auto;
-  padding: 9px 18px;
+  padding: 8px 16px;
   font-size: 0.85rem;
   box-shadow: 0 4px 14px rgba(255, 85, 85, 0.35);
 }
-.top-right-bar {
-  position: fixed;
-  top: 14px;
-  right: 18px;
-  z-index: 500;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.theme-toggle-fixed {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--aside-bg);
-  border: 1.5px solid var(--border-color);
-  color: var(--text-color);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 7px 12px;
-  border-radius: 8px;
-  transition: border-color 0.2s ease;
-  box-shadow: 0 2px 8px var(--box-shadow);
-}
-.theme-toggle-fixed:hover {
-  border-color: #4aed88;
-}
+/* ---- Top Navbar Removed / Restyled into full header above ---- */
+/* Left empty or clean */
 .copyBtn {
   background: var(--input-bg);
   color: var(--text-color);
@@ -573,6 +683,13 @@
   font-weight: 800;
   margin: 0;
   color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-title-icon {
+  flex-shrink: 0;
+  opacity: 0.75;
 }
 .modal-close {
   background: transparent;
@@ -583,8 +700,13 @@
   opacity: 0.6;
   transition: opacity 0.2s;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
 }
-.modal-close:hover { opacity: 1; }
+.modal-close:hover { opacity: 1; background: rgba(255,255,255,0.06); }
 .modal-desc {
   font-size: 0.83rem;
   color: var(--text-color);
@@ -622,6 +744,9 @@
   cursor: pointer;
   transition: background 0.2s;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .invite-copy-btn:hover { background: #2b824c; color: #fff; }
 .modal-share-label {
@@ -643,10 +768,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 12px 8px;
-  background: var(--bg-color);
-  border: 1.5px solid var(--border-color);
+  gap: 8px;
+  padding: 16px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -654,13 +779,12 @@
 }
 .share-platform-btn:hover {
   border-color: var(--platform-color);
-  background: rgba(255,255,255,0.04);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  background: var(--aside-bg);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
   transform: translateY(-2px);
 }
-.share-icon {
-  font-size: 1.5rem;
-  line-height: 1;
+.share-icon-svg {
+  flex-shrink: 0;
 }
 .share-label {
   font-size: 0.72rem;
@@ -795,15 +919,19 @@
   color: #4aed88;
 }
 .fs-node-arrow {
-  width: 10px;
-  font-size: 0.7rem;
+  width: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-color);
   opacity: 0.5;
   flex-shrink: 0;
 }
 .fs-node-icon {
-  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
+  opacity: 0.8;
 }
 .fs-node-name {
   flex: 1;
@@ -824,11 +952,15 @@
   border: none;
   cursor: pointer;
   font-size: 0.75rem;
-  padding: 1px 3px;
+  padding: 2px 4px;
   border-radius: 3px;
   color: var(--text-color);
   opacity: 0.7;
   transition: opacity 0.15s, background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 .fs-node-actions button:hover {
   opacity: 1;
@@ -851,6 +983,12 @@
   gap: 6px;
   padding: 3px 8px;
   font-size: 0.82rem;
+}
+.fs-create-icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 /* ---- File Tabs ---- */
