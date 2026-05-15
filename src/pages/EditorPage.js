@@ -133,6 +133,11 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
+            // Show a toast when the server rejects an action due to insufficient permissions
+            socketRef.current.on('error', ({ message }) => {
+                toast.error(message || 'Permission denied.');
+            });
+
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs }) => {
                 setFileSystem(fs);
@@ -161,6 +166,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.FS_SYNC);
+                socketRef.current.off('error');
             }
         };
     }, []);
