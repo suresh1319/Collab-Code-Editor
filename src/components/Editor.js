@@ -113,7 +113,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     const editor = Codemirror.fromTextArea(textareaRef.current, {
       mode: getModeFromFilename(fileName),
       theme: editorTheme || 'dracula',
-      autoCloseTags: true,
+      autoCloseTags: false,
       autoCloseBrackets: true,
       matchBrackets: true,
       lineNumbers: true,

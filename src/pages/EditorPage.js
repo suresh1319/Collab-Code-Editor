@@ -13,6 +13,9 @@ import {
     Monitor,
     ChevronRight,
     MessageSquare,
+    HelpCircle,
+    Bell,
+    Play
 } from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
@@ -20,6 +23,9 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
+import Preview from '../components/Preview';
+import SupportModal from '../components/SupportModal';
+import EditRequestsPanel from '../components/EditRequestsPanel';
 import ConfirmModal from '../components/ConfirmModal';
 import LeaveRoomModal from '../components/LeaveRoomModal';
 import { initSocket } from '../socket';
@@ -35,6 +41,10 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
+    const [showSupport, setShowSupport] = useState(false);
+    const [showPreview, setShowPreview] = useState(true);
+    const [editRequests, setEditRequests] = useState([]);
+    const [lastChangeTime, setLastChangeTime] = useState(Date.now());
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [showLeaveModal, setShowLeaveModal] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
@@ -198,7 +208,9 @@ const EditorPage = () => {
                 toast.success(`${userName} left the room.`);
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
-
+            socketRef.current.on(ACTIONS.RECEIVE_CODE_EDIT, (request) => {
+                setEditRequests(prev => [...prev, request]);
+                toast.success(`${request.userName} sent an edit request on ${request.fileName}`);
             // Show a toast when the server rejects an action due to insufficient permissions.
             // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
             // reserved 'error' event which may fire with different payload shapes.
@@ -216,10 +228,12 @@ const EditorPage = () => {
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
                     Object.entries(fileContents).forEach(([k, v]) => {
+                        fileContentsRef.current[k] = v;
                         if (!(k in initialContentsRef.current)) {
                             initialContentsRef.current[k] = v;
                         }
                     });
+                    setLastChangeTime(Date.now());
                     Object.entries(fileContents).forEach(([k, v]) => {
                         fileContentsRef.current[k] = v;
                     });
@@ -274,6 +288,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DISCONNECTED);
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
+                socketRef.current.off(ACTIONS.RECEIVE_CODE_EDIT);
                 socketRef.current.off(ACTIONS.APPROVE_CODE_EDIT);
                 socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
@@ -322,6 +337,7 @@ const EditorPage = () => {
 
     const handleCodeChange = useCallback((fileId, value) => {
         fileContentsRef.current[fileId] = value;
+        setLastChangeTime(Date.now());
         setFileContentsSnapshot(prev => ({ ...prev, [fileId]: value }));
     }, []);
 
@@ -380,6 +396,26 @@ const EditorPage = () => {
         }
     }
 
+    const handleSendEditRequest = (req) => {
+        socketRef.current.emit(ACTIONS.REQUEST_CODE_EDIT, {
+            roomId,
+            fileId: req.fileId,
+            fileName: req.fileName,
+            message: req.message,
+            userName: location.state?.userName
+        });
+    };
+
+    const handleApproveRequest = (id) => {
+        setEditRequests(prev => prev.filter(r => r.id !== id));
+        toast.success("Request approved.");
+    };
+
+    const handleDenyRequest = (id) => {
+        setEditRequests(prev => prev.filter(r => r.id !== id));
+        toast.error("Request denied.");
+    };
+
     async function handleDownload() {
         setShowConfirmDownload(false);
         const contents = { ...fileContentsRef.current };
@@ -410,7 +446,7 @@ const EditorPage = () => {
     }
 
     // ---- Upload handler ----
-    const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
+    const BINARY_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'mp4', 'mp3', 'woff', 'woff2', 'ttf', 'eot', 'pdf', 'zip']);
     function isBinary(name) {
         const ext = name.split('.').pop().toLowerCase();
         return BINARY_EXTS.has(ext);
@@ -524,6 +560,9 @@ const EditorPage = () => {
                     )}
                 </div>
                 <div className="top-navbar-right">
+                    <button className="navbar-icon-btn" onClick={() => setShowPreview(!showPreview)} title="Toggle Preview">
+                        <Play size={15} /> <span style={{ marginLeft: '5px', fontSize: '13px' }}>Preview</span>
+                    </button>
                     <button className="navbar-icon-btn" onClick={toggleTheme} title="Toggle Theme">
                         {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
                     </button>
@@ -562,13 +601,24 @@ const EditorPage = () => {
                             <Users size={22} strokeWidth={1.5} />
                             {clients.length > 0 && <span className="activity-badge">{clients.length}</span>}
                         </button>
+                        <button
+                            className={`activity-btn ${activePanel === 'requests' ? 'activity-btn--active' : ''}`}
+                            onClick={() => {
+                                setActivePanel('requests');
+                                setLastPersistentPanel('requests');
+                            }}
+                            title="Edit Requests"
+                        >
+                            <Bell size={22} strokeWidth={1.5} />
+                            {editRequests.length > 0 && <span className="activity-badge" style={{ backgroundColor: '#ff5555' }}>{editRequests.length}</span>}
+                        </button>
                     </div>
 
                     <div className="activity-bar-bottom">
                         {canWrite && (
                             <>
-                                <button 
-                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
+                                <button
+                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`}
                                     onClick={() => {
                                         setActivePanel('upload');
                                         uploadFileInputRef.current?.click();
@@ -578,13 +628,13 @@ const EditorPage = () => {
                                             window.removeEventListener('focus', reset);
                                         };
                                         window.addEventListener('focus', reset);
-                                    }} 
+                                    }}
                                     title="Upload File(s)"
                                 >
                                     <Upload size={22} strokeWidth={1.5} />
                                 </button>
-                                <button 
-                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
+                                <button
+                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`}
                                     onClick={() => {
                                         setActivePanel('files');
                                         uploadFolderInputRef.current?.click();
@@ -593,47 +643,63 @@ const EditorPage = () => {
                                             window.removeEventListener('focus', reset);
                                         };
                                         window.addEventListener('focus', reset);
-                                    }} 
+                                    }}
                                     title="Upload Folder"
                                 >
                                     <FolderUp size={22} strokeWidth={1.5} />
                                 </button>
                             </>
                         )}
-                        <button 
-                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('share');
                                 setShowInvite(true);
-                            }} 
+                            }}
                             title="Invite Friends"
                         >
                             <MessageSquare size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('secrets');
                                 copyRoomId();
-                            }} 
+                            }}
                             title="Copy Room ID"
                         >
                             <KeyRound size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('save');
+                                handleDownload();
+                            }}
                                 setShowConfirmDownload(true);
                             }} 
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
                         </button>
+                        <button
+                            className={`activity-btn ${activePanel === 'support' ? 'activity-btn--active' : ''}`}
+                            onClick={() => {
+                                setShowSupport(true);
+                                setActivePanel('support');
+                            }}
+                            title="Support & Help"
+                        >
+                            <HelpCircle size={22} strokeWidth={1.5} />
+                        </button>
                     </div>
                 </div>
 
                 {/* ── Side Panel ── */}
+                {['explorer', 'users', 'requests'].includes(activePanel) && (
+                    <div className="side-panel">
+                        {activePanel === 'explorer' && (
+                            <>
                 {['explorer', 'users'].includes(activePanel) && (
                     <>
                         <div className="side-panel" style={{ width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}>
@@ -695,6 +761,17 @@ const EditorPage = () => {
                                 </div>
                             </>
                         )}
+                        {activePanel === 'requests' && (
+                            <EditRequestsPanel
+                                requests={editRequests}
+                                onApprove={handleApproveRequest}
+                                onDeny={handleDenyRequest}
+                                onSendRequest={handleSendEditRequest}
+                                canWrite={canWrite}
+                                fileSystem={fileSystem}
+                                activeFileId={activeFileId}
+                            />
+                        )}
                     </div>
                     <div className="resizer" onMouseDown={startResizing} />
                 </>
@@ -711,6 +788,43 @@ const EditorPage = () => {
                         onTabClose={handleTabClose}
                     />
 
+                    {/* Editor & Preview Split */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr',
+                        flex: 1,
+                        minHeight: 0,
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                            borderRight: showPreview ? '1px solid #44475a' : 'none'
+                        }}>
+                            {socketReady && activeFileId && activeFile ? (
+                                <Editor
+                                    key={activeFileId}
+                                    socketRef={socketRef}
+                                    roomId={roomId}
+                                    fileId={activeFileId}
+                                    fileName={activeFile.name}
+                                    onCodeChange={handleCodeChange}
+                                    onEditorReady={handleEditorReady}
+                                    userName={location.state?.userName}
+                                    canWrite={canWrite}
+                                    editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                                    initialContent={initialContentsRef.current[activeFileId] || ''}
+                                />
+                            ) : (
+                                <div className="editor-empty">
+                                    <div className="editor-empty-inner">
+                                        <div className="editor-empty-logo">
+                                            <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                                        </div>
+                                        <p>Select a file from the explorer to start editing</p>
+                                        {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
+                                    </div>
                     {/* Editor */}
                     {socketReady && activeFileId && activeFile ? (
                         <Editor
@@ -733,25 +847,47 @@ const EditorPage = () => {
                                 <div className="editor-empty-logo">
                                     <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
                                 </div>
-                                <p>Select a file from the explorer to start editing</p>
-                                {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
-                            </div>
-                        </div>
-                    )}
+                            )}
 
-                    {!canWrite && activeFileId && (
-                        <div className="readonly-badge">Read-Only Mode</div>
-                    )}
+                            {!canWrite && activeFileId && (
+                                <div className="readonly-badge">Read-Only Mode</div>
+                            )}
+                        </div>
+
+                        {showPreview && (
+                            <div style={{
+                                overflow: 'hidden',
+                                backgroundColor: '#fff',
+                                height: '100%'
+                            }}>
+                                <Preview
+                                    fileSystem={fileSystem}
+                                    fileContents={fileContentsRef.current}
+                                    activeFileId={activeFileId}
+                                    lastChangeTime={lastChangeTime}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {showInvite && (
-                <InviteModal 
-                    roomId={roomId} 
+                <InviteModal
+                    roomId={roomId}
                     onClose={() => {
                         setShowInvite(false);
                         setActivePanel(lastPersistentPanel);
-                    }} 
+                    }}
+                />
+            )}
+
+            {showSupport && (
+                <SupportModal
+                    onClose={() => {
+                        setShowSupport(false);
+                        setActivePanel(lastPersistentPanel);
+                    }}
                 />
             )}
 

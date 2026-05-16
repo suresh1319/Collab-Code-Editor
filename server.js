@@ -293,6 +293,20 @@ io.on('connection', (socket) => {
     }
   });
 
+
+  socket.on(ACTIONS.REQUEST_CODE_EDIT, ({ roomId, fileId, fileName, message, userName }) => {
+    if (roomState[roomId] && roomState[roomId].admin) {
+      const adminSocketId = roomState[roomId].admin;
+      io.to(adminSocketId).emit(ACTIONS.RECEIVE_CODE_EDIT, {
+        id: uuid(),
+        requesterSocketId: socket.id,
+        userName,
+        fileId,
+        fileName,
+        message
+      });
+    }
+
   socket.on(ACTIONS.APPROVE_CODE_EDIT, ({ roomId, requesterSocketId }) => {
     if (!roomState[roomId] || roomState[roomId].admin !== socket.id) return;
 
@@ -315,6 +329,7 @@ io.on('connection', (socket) => {
       roomId,
       canWrite: false,
     });
+
   });
 
   socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
