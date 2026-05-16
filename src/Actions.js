@@ -15,7 +15,6 @@ const ACTIONS = {
     FS_DELETE_NODE: 'fs_delete_node',
     FS_RENAME_NODE: 'fs_rename_node',
     FS_UPLOAD_BATCH: 'fs_upload_batch',
-    FS_SAVE: 'fs_save',
 };
 
 module.exports = ACTIONS;

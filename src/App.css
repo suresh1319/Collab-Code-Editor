@@ -76,96 +76,6 @@
   transition: all 0.2s ease;
   color: #fff;
 }
-
-/* Unsaved modal / buttons: glassmorphism cyberpunk style */
-.unsaved-modal {
-  width: 430px;
-
-  background: rgba(24, 27, 38, 0.88);
-
-  border: 1px solid rgba(255,255,255,0.06);
-
-  border-radius: 22px;
-
-  padding: 34px 30px;
-
-  backdrop-filter: blur(22px);
-
-  box-shadow:
-    0 20px 60px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.03);
-}
-
-.unsaved-icon {
-  width: 72px;
-  height: 72px;
-
-  margin: 0 auto 20px;
-
-  border-radius: 20px;
-
-  background: rgba(255,179,71,0.08);
-
-  border: 1px solid rgba(255,179,71,0.18);
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  color: #ffb347;
-
-  font-size: 34px;
-
-  box-shadow:
-    0 0 22px rgba(255,179,71,0.12);
-}
-
-.unsaved-actions {
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 10px;
-}
-
-.unsaved-btn {
-  position: relative;
-  overflow: hidden;
-
-  padding: 12px 22px;
-  border-radius: 12px;
-
-  border: 1px solid rgba(255,255,255,0.08);
-
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-
-  cursor: pointer;
-
-  transition:
-    transform 0.2s ease,
-    background 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
-
-  backdrop-filter: blur(10px);
-
-  color: white;
-}
-
-.unsaved-btn:hover { transform: translateY(-2px); }
-
-.unsaved-btn.save {
-  background: linear-gradient(135deg,#22c55e,#16a34a);
-  box-shadow:0 0 18px rgba(34,197,94,0.25),0 4px 18px rgba(0,0,0,0.35);
-}
-.unsaved-btn.save:hover { box-shadow:0 0 26px rgba(34,197,94,0.45),0 8px 24px rgba(0,0,0,0.4); }
-
-.unsaved-btn.leave { background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); color:#f3f4f6; }
-.unsaved-btn.leave:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.16); }
-
-.unsaved-btn.cancel { background: transparent; border: 1px solid rgba(255,255,255,0.1); color:#9ca3af; }
-.unsaved-btn.cancel:hover { background: rgba(255,255,255,0.05); color:white; }
 .joinbtn {
   background-color: #4aed88;
   color: #1c1e29;
@@ -365,20 +275,6 @@
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 9999px;
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000;
-  }
-
   min-width: 14px;
   display: flex;
   align-items: center;
