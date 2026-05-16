@@ -29,12 +29,46 @@ import {
     Navigate,
     useParams,
 } from 'react-router-dom';
+import VirtualConsole from '../components/VirtualConsole';
+import { useCodeRunner } from '../hooks/useCodeRunner';
+
+function getModeFromFilename(name = '') {
+    const ext = name.split('.').pop().toLowerCase();
+    const modeMap = {
+        js:   { name: 'javascript', json: false },
+        jsx:  { name: 'javascript', json: false },
+        ts:   { name: 'javascript', json: false },
+        tsx:  { name: 'javascript', json: false },
+        json: { name: 'javascript', json: true },
+        html: 'htmlmixed',
+        htm:  'htmlmixed',
+        css:  'css',
+        scss: 'css',
+        py:   'python',
+        md:   'markdown',
+        markdown: 'markdown',
+        xml:  'xml',
+        svg:  'xml',
+        sh:   'shell',
+        bash: 'shell',
+        sql:  'sql',
+        php:  'php',
+        c:    'text/x-csrc',
+        cpp:  'text/x-c++src',
+        java: 'text/x-java',
+        cs:   'text/x-csharp',
+    };
+    return modeMap[ext] || 'text/plain';
+}
 
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
-    const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
+    const [activePanel, setActivePanel] = useState('explorer');
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
+
+    // ✅ FIX: start console CLOSED — user opens it manually or it auto-opens on Run
+    const [consoleOpen, setConsoleOpen] = useState(false);
 
     useEffect(() => {
         if (theme === 'light') {
@@ -57,17 +91,17 @@ const EditorPage = () => {
     const [canWrite, setCanWrite] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
 
-    // File system state
     const [fileSystem, setFileSystem] = useState({});
     const [openFiles, setOpenFiles] = useState([]);
     const [activeFileId, setActiveFileId] = useState(null);
 
-    // Track file contents for download
     const fileContentsRef = useRef({});
     const editorsRef = useRef({});
-    const initialContentsRef = useRef({}); // fileId → string (for uploads)
+    const initialContentsRef = useRef({});
     const uploadFileInputRef = useRef(null);
     const uploadFolderInputRef = useRef(null);
+
+    const { run, isRunning, consoleLogs, clearLogs } = useCodeRunner();
 
     useEffect(() => {
         const init = async () => {
@@ -133,7 +167,6 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
-            // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
                     Object.entries(fileContents).forEach(([k, v]) => {
@@ -143,7 +176,6 @@ const EditorPage = () => {
                     });
                 }
                 setFileSystem(fs);
-                // Auto-open the first file if none open
                 setOpenFiles(prev => {
                     if (prev.length === 0) {
                         const root = fs['root'];
@@ -172,13 +204,11 @@ const EditorPage = () => {
         };
     }, []);
 
-    // ---- File system event handlers ----
     const handleCreateNode = useCallback((node) => {
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
     }, [roomId]);
 
     const handleDeleteNode = useCallback((nodeId) => {
-        // Close tab if open
         setOpenFiles(prev => prev.filter(id => id !== nodeId));
         setActiveFileId(prev => prev === nodeId ? null : prev);
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
@@ -214,6 +244,27 @@ const EditorPage = () => {
         editorsRef.current[fileId] = editorInstance;
     }, []);
 
+    const handleRun = useCallback(() => {
+        if (!activeFileId) return;
+        const activeFile = fileSystem[activeFileId];
+        if (!activeFile) return;
+        const editor = editorsRef.current[activeFileId];
+        const code = editor?.getValue?.() ?? fileContentsRef.current[activeFileId] ?? '';
+        setConsoleOpen(true);
+        run(code, getModeFromFilename(activeFile.name), activeFile.name);
+    }, [activeFileId, fileSystem, run]);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!isRunning && activeFileId) handleRun();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [handleRun, isRunning, activeFileId]);
+
     async function copyRoomId() {
         try {
             await navigator.clipboard.writeText(roomId);
@@ -221,10 +272,7 @@ const EditorPage = () => {
         } catch (err) {
             toast.error('Could not copy Room ID');
         } finally {
-            // Revert active icon after a short delay
-            setTimeout(() => {
-                setActivePanel(lastPersistentPanel);
-            }, 1000);
+            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
         }
     }
 
@@ -250,13 +298,9 @@ const EditorPage = () => {
         }
         await downloadProject(fileSystem, contents);
         toast.success('Project downloaded!');
-        // Revert active icon
-        setTimeout(() => {
-            setActivePanel(lastPersistentPanel);
-        }, 1000);
+        setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
     }
 
-    // ---- Upload handler ----
     const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
     function isBinary(name) {
         const ext = name.split('.').pop().toLowerCase();
@@ -274,21 +318,15 @@ const EditorPage = () => {
 
     async function handleUploadFiles(e) {
         const files = Array.from(e.target.files || []);
-        if (!files.length) {
-            setActivePanel(lastPersistentPanel);
-            return;
-        }
+        if (!files.length) { setActivePanel(lastPersistentPanel); return; }
         e.target.value = '';
 
-        // Defensive client-side guard — server also enforces this
         if (!canWrite) {
             toast.error('You do not have permission to upload files.');
             return;
         }
 
         const isFolder = files[0].webkitRelativePath && files[0].webkitRelativePath.includes('/');
-
-        // Build a path→nodeId map to avoid duplicate folder creation
         const pathToId = {};
         const nodesToCreate = [];
 
@@ -311,33 +349,25 @@ const EditorPage = () => {
             let parentId = 'root';
             if (isFolder && file.webkitRelativePath) {
                 const parts = file.webkitRelativePath.split('/');
-                // parts[0] is the root folder name, skip it — everything goes under 'root'
-                const folderParts = parts.slice(1, -1); // intermediate folders
+                const folderParts = parts.slice(1, -1);
                 if (folderParts.length > 0) {
                     parentId = ensureFolder(folderParts, 'root');
                 }
             }
-
             const fileId = uuid();
-            // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
-
-            // Skip content reading for binary files — their node is still created
             if (isBinary(file.name)) return null;
             const content = await readFileAsText(file);
             return { fileId, content };
         });
 
         const results = (await Promise.all(fileReadPromises)).filter(Boolean);
-
-        // Build fileContents map: { fileId -> textContent }
         const fileContents = {};
         for (const { fileId, content } of results) {
             fileContents[fileId] = content;
             initialContentsRef.current[fileId] = content;
         }
 
-        // Count all file nodes (including binary files that were skipped for content reading).
         const fileCount = nodesToCreate.filter(n => n.type === 'file').length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
         socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents }, ({ success, message }) => {
@@ -373,6 +403,39 @@ const EditorPage = () => {
                     <button className="navbar-icon-btn" onClick={toggleTheme} title="Toggle Theme">
                         {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
                     </button>
+
+                    {activeFileId && (
+                        <button
+                            className={`navbar-run-btn${isRunning ? ' running' : ''}`}
+                            onClick={handleRun}
+                            disabled={isRunning}
+                            title={isRunning ? 'Running…' : 'Run code (Ctrl+Enter)'}
+                        >
+                            {isRunning ? (
+                                <>
+                                    <span className="run-btn-spinner" />
+                                    <span>Running…</span>
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="run-btn-play" viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+                                        <path d="M3.5 2.5a.5.5 0 0 1 .757-.429l9 5.5a.5.5 0 0 1 0 .858l-9 5.5A.5.5 0 0 1 3.5 13.5v-11z" />
+                                    </svg>
+                                    <span>Run</span>
+                                </>
+                            )}
+                        </button>
+                    )}
+
+                    {/* ✅ FIX: button label correctly reflects current state */}
+                    <button
+                        className="console-toggle-btn"
+                        onClick={() => setConsoleOpen(prev => !prev)}
+                        title={consoleOpen ? 'Hide Console' : 'Show Console'}
+                    >
+                        {consoleOpen ? 'Hide Console' : 'Show Console'}
+                    </button>
+
                     <button className="navbar-leave-btn" onClick={leaveRoom}>
                         <LogOut size={14} strokeWidth={2.5} />
                         <span>Leave Room</span>
@@ -381,7 +444,7 @@ const EditorPage = () => {
             </div>
 
             <div className="mainWrap">
-                {/* ── Activity Bar (icon strip) ── */}
+                {/* ── Activity Bar ── */}
                 <div className="activity-bar">
                     <div className="activity-bar-top">
                         <div className="activity-logo">
@@ -389,20 +452,14 @@ const EditorPage = () => {
                         </div>
                         <button
                             className={`activity-btn ${activePanel === 'explorer' ? 'activity-btn--active' : ''}`}
-                            onClick={() => {
-                                setActivePanel('explorer');
-                                setLastPersistentPanel('explorer');
-                            }}
+                            onClick={() => { setActivePanel('explorer'); setLastPersistentPanel('explorer'); }}
                             title="Explorer"
                         >
                             <FolderOpen size={22} strokeWidth={1.5} />
                         </button>
                         <button
                             className={`activity-btn ${activePanel === 'users' ? 'activity-btn--active' : ''}`}
-                            onClick={() => {
-                                setActivePanel('users');
-                                setLastPersistentPanel('users');
-                            }}
+                            onClick={() => { setActivePanel('users'); setLastPersistentPanel('users'); }}
                             title={`Connected Users (${clients.length})`}
                         >
                             <Users size={22} strokeWidth={1.5} />
@@ -413,65 +470,49 @@ const EditorPage = () => {
                     <div className="activity-bar-bottom">
                         {canWrite && (
                             <>
-                                <button 
-                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
+                                <button
+                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`}
                                     onClick={() => {
                                         setActivePanel('upload');
                                         uploadFileInputRef.current?.click();
-                                        // Reset after a delay or on focus (if picker cancelled)
-                                        const reset = () => {
-                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
-                                            window.removeEventListener('focus', reset);
-                                        };
+                                        const reset = () => { setTimeout(() => setActivePanel(lastPersistentPanel), 1000); window.removeEventListener('focus', reset); };
                                         window.addEventListener('focus', reset);
-                                    }} 
+                                    }}
                                     title="Upload File(s)"
                                 >
                                     <Upload size={22} strokeWidth={1.5} />
                                 </button>
-                                <button 
-                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
+                                <button
+                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`}
                                     onClick={() => {
                                         setActivePanel('files');
                                         uploadFolderInputRef.current?.click();
-                                        const reset = () => {
-                                            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
-                                            window.removeEventListener('focus', reset);
-                                        };
+                                        const reset = () => { setTimeout(() => setActivePanel(lastPersistentPanel), 1000); window.removeEventListener('focus', reset); };
                                         window.addEventListener('focus', reset);
-                                    }} 
+                                    }}
                                     title="Upload Folder"
                                 >
                                     <FolderUp size={22} strokeWidth={1.5} />
                                 </button>
                             </>
                         )}
-                        <button 
-                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('share');
-                                setShowInvite(true);
-                            }} 
+                        <button
+                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`}
+                            onClick={() => { setActivePanel('share'); setShowInvite(true); }}
                             title="Invite Friends"
                         >
                             <MessageSquare size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('secrets');
-                                copyRoomId();
-                            }} 
+                        <button
+                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`}
+                            onClick={() => { setActivePanel('secrets'); copyRoomId(); }}
                             title="Copy Room ID"
                         >
                             <KeyRound size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('save');
-                                handleDownload();
-                            }} 
+                        <button
+                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`}
+                            onClick={() => { setActivePanel('save'); handleDownload(); }}
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
@@ -544,8 +585,7 @@ const EditorPage = () => {
                 )}
 
                 {/* ── Main Editor Area ── */}
-                <div className="editorWrap">
-                    {/* File tabs */}
+                <div className="editorWrap editor-layout">
                     <FileTabs
                         openFiles={openFiles}
                         fileSystem={fileSystem}
@@ -554,66 +594,58 @@ const EditorPage = () => {
                         onTabClose={handleTabClose}
                     />
 
-                    {/* Editor */}
-                    {socketReady && activeFileId && activeFile ? (
-                        <Editor
-                            key={activeFileId}
-                            socketRef={socketRef}
-                            roomId={roomId}
-                            fileId={activeFileId}
-                            fileName={activeFile.name}
-                            onCodeChange={handleCodeChange}
-                            onEditorReady={handleEditorReady}
-                            userName={location.state?.userName}
-                            canWrite={canWrite}
-                            editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
-                            initialContent={initialContentsRef.current[activeFileId] || ''}
-                        />
-                    ) : (
-                        <div className="editor-empty">
-                            <div className="editor-empty-inner">
-                                <div className="editor-empty-logo">
-                                    <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                    <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                        {socketReady && activeFileId && activeFile ? (
+                            <Editor
+                                key={activeFileId}
+                                socketRef={socketRef}
+                                roomId={roomId}
+                                fileId={activeFileId}
+                                fileName={activeFile.name}
+                                onCodeChange={handleCodeChange}
+                                onEditorReady={handleEditorReady}
+                                userName={location.state?.userName}
+                                canWrite={canWrite}
+                                editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                                initialContent={initialContentsRef.current[activeFileId] || ''}
+                            />
+                        ) : (
+                            <div className="editor-empty">
+                                <div className="editor-empty-inner">
+                                    <div className="editor-empty-logo">
+                                        <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                                    </div>
+                                    <p>Select a file from the explorer to start editing</p>
+                                    {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                                 </div>
-                                <p>Select a file from the explorer to start editing</p>
-                                {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {!canWrite && activeFileId && (
-                        <div className="readonly-badge">Read-Only Mode</div>
-                    )}
+                        {!canWrite && activeFileId && (
+                            <div className="readonly-badge">Read-Only Mode</div>
+                        )}
+                    </div>
+
+                    {/* ✅ VirtualConsole — only mounts when open=true, unmounts completely when false */}
+                    <VirtualConsole
+                        logs={consoleLogs}
+                        isRunning={isRunning}
+                        onClear={clearLogs}
+                        open={consoleOpen}
+                        setOpen={setConsoleOpen}
+                    />
                 </div>
             </div>
 
             {showInvite && (
-                <InviteModal 
-                    roomId={roomId} 
-                    onClose={() => {
-                        setShowInvite(false);
-                        setActivePanel(lastPersistentPanel);
-                    }} 
+                <InviteModal
+                    roomId={roomId}
+                    onClose={() => { setShowInvite(false); setActivePanel(lastPersistentPanel); }}
                 />
             )}
 
-            {/* Hidden file inputs for upload */}
-            <input
-                ref={uploadFileInputRef}
-                type="file"
-                multiple
-                style={{ display: 'none' }}
-                onChange={handleUploadFiles}
-            />
-            <input
-                ref={uploadFolderInputRef}
-                type="file"
-                multiple
-                webkitdirectory=""
-                directory=""
-                style={{ display: 'none' }}
-                onChange={handleUploadFiles}
-            />
+            <input ref={uploadFileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleUploadFiles} />
+            <input ref={uploadFolderInputRef} type="file" multiple webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleUploadFiles} />
         </div>
     );
 };
