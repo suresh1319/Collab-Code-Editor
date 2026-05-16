@@ -182,7 +182,8 @@ const EditorPage = () => {
                 ), { duration: 10000, position: 'top-center' });
             });
 
-            socketRef.current.on(ACTIONS.APPROVE_CODE_EDIT, () => {
+            socketRef.current.on(ACTIONS.APPROVE_CODE_EDIT, ({ canWrite }) => {
+                if (canWrite !== undefined) setCanWrite(canWrite);
                 toast.success('Your edit request was approved.');
             });
 
