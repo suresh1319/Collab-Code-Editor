@@ -34,7 +34,6 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
-    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
     const [sideWidth, setSideWidth] = useState(() => {
@@ -115,6 +114,7 @@ const EditorPage = () => {
 
     // Track file contents for download
     const fileContentsRef = useRef({});
+    const [fileContentsSnapshot, setFileContentsSnapshot] = useState({});
     const editorsRef = useRef({});
     const initialContentsRef = useRef({}); // fileId → string (for uploads)
     const uploadFileInputRef = useRef(null);
@@ -165,18 +165,30 @@ const EditorPage = () => {
                         <i style={{ color: '#555' }}>"{message}"</i><br /><br />
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <button onClick={() => {
-                                socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId: requesterSocketId, canWrite: true });
+                                socketRef.current.emit(ACTIONS.APPROVE_CODE_EDIT, { roomId, requesterSocketId });
                                 toast.dismiss(t.id);
                             }} style={{ background: '#50fa7b', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>
                                 Approve
                             </button>
-                            <button onClick={() => toast.dismiss(t.id)}
+                            <button onClick={() => {
+                                socketRef.current.emit(ACTIONS.DENY_CODE_EDIT, { roomId, requesterSocketId });
+                                toast.dismiss(t.id);
+                            }}
                                 style={{ background: '#ff5555', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>
                                 Deny
                             </button>
                         </div>
                     </div>
                 ), { duration: 10000, position: 'top-center' });
+            });
+
+            socketRef.current.on(ACTIONS.APPROVE_CODE_EDIT, ({ canWrite }) => {
+                if (canWrite !== undefined) setCanWrite(canWrite);
+                toast.success('Your edit request was approved.');
+            });
+
+            socketRef.current.on(ACTIONS.DENY_CODE_EDIT, () => {
+                toast.error('Your edit request was denied.');
             });
 
             socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, userName }) => {
@@ -205,6 +217,10 @@ const EditorPage = () => {
                             initialContentsRef.current[k] = v;
                         }
                     });
+                    Object.entries(fileContents).forEach(([k, v]) => {
+                        fileContentsRef.current[k] = v;
+                    });
+                    setFileContentsSnapshot(prev => ({ ...prev, ...fileContents }));
                 }
                 setFileSystem(fs);
 
@@ -255,6 +271,8 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DISCONNECTED);
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
+                socketRef.current.off(ACTIONS.APPROVE_CODE_EDIT);
+                socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
                 socketRef.current.off(ACTIONS.PERMISSION_DENIED);
             }
@@ -301,6 +319,7 @@ const EditorPage = () => {
 
     const handleCodeChange = useCallback((fileId, value) => {
         fileContentsRef.current[fileId] = value;
+        setFileContentsSnapshot(prev => ({ ...prev, [fileId]: value }));
     }, []);
 
     const handleEditorReady = useCallback((fileId, editorInstance) => {
@@ -342,6 +361,15 @@ const EditorPage = () => {
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
         }
+        if (!fileSystem || !fileSystem['root']) {
+            toast.error('File system not ready. Please try again.');
+            // Revert active icon
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
+            return;
+        }
+
         try {
             await downloadProject(fileSystem, contents);
             toast.success('Project downloaded!');
@@ -672,6 +700,7 @@ const EditorPage = () => {
                             canWrite={canWrite}
                             editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
                             initialContent={initialContentsRef.current[activeFileId] || ''}
+                            fileContentsSnapshot={fileContentsSnapshot}
                         />
                     ) : (
                         <div className="editor-empty">

@@ -293,6 +293,30 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on(ACTIONS.APPROVE_CODE_EDIT, ({ roomId, requesterSocketId }) => {
+    if (!roomState[roomId] || roomState[roomId].admin !== socket.id) return;
+
+    roomState[roomId].permissions[requesterSocketId] = true;
+
+    let clients = getAllConnectedClients(roomId);
+    clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+    io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+
+    io.to(requesterSocketId).emit(ACTIONS.APPROVE_CODE_EDIT, {
+      roomId,
+      canWrite: true,
+    });
+  });
+
+  socket.on(ACTIONS.DENY_CODE_EDIT, ({ roomId, requesterSocketId }) => {
+    if (!roomState[roomId] || roomState[roomId].admin !== socket.id) return;
+
+    io.to(requesterSocketId).emit(ACTIONS.DENY_CODE_EDIT, {
+      roomId,
+      canWrite: false,
+    });
+  });
+
   socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
     socket.to(roomId).emit(ACTIONS.CODE_CHANGE, { code });
   });
