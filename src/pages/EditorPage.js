@@ -5,6 +5,7 @@ import {
     Users,
     Upload,
     FolderUp,
+    Download,
     KeyRound,
     Save,
     Sun,
@@ -20,6 +21,7 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
+import { downloadProject } from '../utils/downloadProject';
 import { initSocket } from '../socket';
 import { v4 as uuid } from 'uuid';
 import {
@@ -61,6 +63,7 @@ const EditorPage = () => {
     const [openFiles, setOpenFiles] = useState([]);
     const [activeFileId, setActiveFileId] = useState(null);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
 
     // Track file contents for download
     const fileContentsRef = useRef({});
@@ -274,6 +277,25 @@ const EditorPage = () => {
     async function handleSaveAndStay() {
         const saved = await saveContentsToServer();
         if (saved) setShowLeaveConfirm(false);
+    }
+
+    async function handleDownload() {
+        setShowConfirmDownload(false);
+        const contents = { ...fileContentsRef.current };
+        for (const [fileId, editor] of Object.entries(editorsRef.current)) {
+            if (editor && editor.getValue) contents[fileId] = editor.getValue();
+        }
+        try {
+            await downloadProject(fileSystem, contents);
+            toast.success('Project downloaded!');
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error('Download failed. Please try again.');
+        } finally {
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
+        }
     }
 
     function confirmExit() {
@@ -517,6 +539,16 @@ const EditorPage = () => {
                         >
                             <Save size={22} strokeWidth={1.5} />
                         </button>
+                        <button 
+                            className={`activity-btn ${activePanel === 'download' ? 'activity-btn--active' : ''}`} 
+                            onClick={() => {
+                                setActivePanel('download');
+                                setShowConfirmDownload(true);
+                            }} 
+                            title="Download Project"
+                        >
+                            <Download size={22} strokeWidth={1.5} />
+                        </button>
                     </div>
                 </div>
 
@@ -636,6 +668,32 @@ const EditorPage = () => {
                         setActivePanel(lastPersistentPanel);
                     }} 
                 />
+            )}
+
+            {/* Confirm Download Modal */}
+            {showConfirmDownload && (
+                <div className="modal-overlay">
+                    <div className="unsaved-modal">
+                        <div className="unsaved-icon" aria-hidden="true">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="1.6" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 3v10" />
+                                <path d="M8 9l4 4 4-4" />
+                                <path d="M4 17.5A2.5 2.5 0 0 1 6.5 15h11A2.5 2.5 0 0 1 20 17.5V19H4v-1.5z" />
+                            </svg>
+                        </div>
+                        <h2>Confirm Download?</h2>
+                        <p>Do you want to download this project as a ZIP file?</p>
+                        <div className="unsaved-actions">
+                            <button className="unsaved-btn save" onClick={handleDownload}>Download</button>
+                            <button className="unsaved-btn cancel" onClick={() => {
+                                setShowConfirmDownload(false);
+                                setTimeout(() => {
+                                    setActivePanel(lastPersistentPanel);
+                                }, 1000);
+                            }}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Confirm Leave Modal */}
