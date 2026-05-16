@@ -152,10 +152,12 @@ const EditorPage = () => {
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
                     Object.entries(fileContents).forEach(([k, v]) => {
+                        fileContentsRef.current[k] = v;
                         if (!(k in initialContentsRef.current)) {
                             initialContentsRef.current[k] = v;
                         }
                     });
+                    setLastChangeTime(Date.now());
                 }
                 setFileSystem(fs);
                 // Auto-open the first file if none open
@@ -294,7 +296,7 @@ const EditorPage = () => {
     }
 
     // ---- Upload handler ----
-    const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
+    const BINARY_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'mp4', 'mp3', 'woff', 'woff2', 'ttf', 'eot', 'pdf', 'zip']);
     function isBinary(name) {
         const ext = name.split('.').pop().toLowerCase();
         return BINARY_EXTS.has(ext);
@@ -464,8 +466,8 @@ const EditorPage = () => {
                     <div className="activity-bar-bottom">
                         {canWrite && (
                             <>
-                                <button 
-                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`} 
+                                <button
+                                    className={`activity-btn ${activePanel === 'upload' ? 'activity-btn--active' : ''}`}
                                     onClick={() => {
                                         setActivePanel('upload');
                                         uploadFileInputRef.current?.click();
@@ -475,13 +477,13 @@ const EditorPage = () => {
                                             window.removeEventListener('focus', reset);
                                         };
                                         window.addEventListener('focus', reset);
-                                    }} 
+                                    }}
                                     title="Upload File(s)"
                                 >
                                     <Upload size={22} strokeWidth={1.5} />
                                 </button>
-                                <button 
-                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`} 
+                                <button
+                                    className={`activity-btn ${activePanel === 'files' ? 'activity-btn--active' : ''}`}
                                     onClick={() => {
                                         setActivePanel('files');
                                         uploadFolderInputRef.current?.click();
@@ -490,49 +492,49 @@ const EditorPage = () => {
                                             window.removeEventListener('focus', reset);
                                         };
                                         window.addEventListener('focus', reset);
-                                    }} 
+                                    }}
                                     title="Upload Folder"
                                 >
                                     <FolderUp size={22} strokeWidth={1.5} />
                                 </button>
                             </>
                         )}
-                        <button 
-                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'share' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('share');
                                 setShowInvite(true);
-                            }} 
+                            }}
                             title="Invite Friends"
                         >
                             <MessageSquare size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('secrets');
                                 copyRoomId();
-                            }} 
+                            }}
                             title="Copy Room ID"
                         >
                             <KeyRound size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('save');
                                 handleDownload();
-                            }} 
+                            }}
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'support' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'support' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setShowSupport(true);
                                 setActivePanel('support');
-                            }} 
+                            }}
                             title="Support & Help"
                         >
                             <HelpCircle size={22} strokeWidth={1.5} />
@@ -602,7 +604,7 @@ const EditorPage = () => {
                             </>
                         )}
                         {activePanel === 'requests' && (
-                            <EditRequestsPanel 
+                            <EditRequestsPanel
                                 requests={editRequests}
                                 onApprove={handleApproveRequest}
                                 onDeny={handleDenyRequest}
@@ -627,14 +629,14 @@ const EditorPage = () => {
                     />
 
                     {/* Editor & Preview Split */}
-                    <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr', 
-                        flex: 1, 
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr',
+                        flex: 1,
                         minHeight: 0,
-                        overflow: 'hidden' 
+                        overflow: 'hidden'
                     }}>
-                        <div style={{ 
+                        <div style={{
                             display: 'flex',
                             flexDirection: 'column',
                             overflow: 'hidden',
@@ -672,15 +674,15 @@ const EditorPage = () => {
                         </div>
 
                         {showPreview && (
-                            <div style={{ 
+                            <div style={{
                                 overflow: 'hidden',
                                 backgroundColor: '#fff',
                                 height: '100%'
                             }}>
-                                <Preview 
-                                    fileSystem={fileSystem} 
-                                    fileContents={fileContentsRef.current} 
-                                    activeFileId={activeFileId} 
+                                <Preview
+                                    fileSystem={fileSystem}
+                                    fileContents={fileContentsRef.current}
+                                    activeFileId={activeFileId}
                                     lastChangeTime={lastChangeTime}
                                 />
                             </div>
@@ -690,21 +692,21 @@ const EditorPage = () => {
             </div>
 
             {showInvite && (
-                <InviteModal 
-                    roomId={roomId} 
+                <InviteModal
+                    roomId={roomId}
                     onClose={() => {
                         setShowInvite(false);
                         setActivePanel(lastPersistentPanel);
-                    }} 
+                    }}
                 />
             )}
 
             {showSupport && (
-                <SupportModal 
+                <SupportModal
                     onClose={() => {
                         setShowSupport(false);
                         setActivePanel(lastPersistentPanel);
-                    }} 
+                    }}
                 />
             )}
 
