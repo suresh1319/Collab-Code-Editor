@@ -5,6 +5,7 @@ import {
     Users,
     Upload,
     FolderUp,
+    Download,
     KeyRound,
     Save,
     Sun,
@@ -20,9 +21,8 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
-import ConfirmModal from '../components/ConfirmModal';
-import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
+import { initSocket } from '../socket';
 import { v4 as uuid } from 'uuid';
 import {
     useLocation,
@@ -112,6 +112,8 @@ const EditorPage = () => {
     const [fileSystem, setFileSystem] = useState({});
     const [openFiles, setOpenFiles] = useState([]);
     const [activeFileId, setActiveFileId] = useState(null);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
 
     // Track file contents for download
     const fileContentsRef = useRef({});
@@ -279,19 +281,52 @@ const EditorPage = () => {
         }
     }
 
-    function leaveRoom() { reactNavigator('/'); }
-
-    function togglePermission(targetSocketId, currentCanWrite) {
-        if (!isAdmin) return;
-        socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId, canWrite: !currentCanWrite });
+    function leaveRoom() {
+        // Determine if there are unsaved changes by comparing current contents to initial contents
+        const hasUnsaved = Object.keys(fileContentsRef.current || {}).some(id => (fileContentsRef.current[id] || '') !== (initialContentsRef.current[id] || ''));
+        if (hasUnsaved) {
+            setShowLeaveConfirm(true);
+        } else {
+            reactNavigator('/');
+        }
     }
 
-    function requestWriteAccess() {
-        const message = prompt('Enter a message for the admin:');
-        if (message) {
-            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
-            toast.success('Request sent to admin!');
+    function collectCurrentContents() {
+        const contents = { ...fileContentsRef.current };
+        for (const [fileId, editor] of Object.entries(editorsRef.current)) {
+            if (editor && editor.getValue) contents[fileId] = editor.getValue();
         }
+        return contents;
+    }
+
+    async function saveContentsToServer() {
+        const contents = collectCurrentContents();
+
+        return new Promise((resolve) => {
+            if (!socketRef.current) {
+                toast.error('Socket is not connected.');
+                resolve(false);
+                return;
+            }
+
+            socketRef.current.emit(ACTIONS.FS_SAVE, { roomId, fileContents: contents }, ({ success, message }) => {
+                if (success) {
+                    Object.entries(contents).forEach(([k, v]) => {
+                        initialContentsRef.current[k] = v;
+                        fileContentsRef.current[k] = v;
+                    });
+                    toast.success('Project saved on server!');
+                } else {
+                    toast.error(message || 'Save failed.');
+                }
+                resolve(success);
+            });
+        });
+    }
+
+    async function handleSaveAndStay() {
+        const saved = await saveContentsToServer();
+        if (saved) setShowLeaveConfirm(false);
     }
 
     async function handleDownload() {
@@ -307,10 +342,27 @@ const EditorPage = () => {
             console.error('Download failed:', err);
             toast.error('Download failed. Please try again.');
         } finally {
-            // Revert active icon
             setTimeout(() => {
                 setActivePanel(lastPersistentPanel);
             }, 1000);
+        }
+    }
+
+    function confirmExit() {
+        try { socketRef.current?.disconnect(); } catch (e) { }
+        reactNavigator('/');
+    }
+
+    function togglePermission(targetSocketId, currentCanWrite) {
+        if (!isAdmin) return;
+        socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId, canWrite: !currentCanWrite });
+    }
+
+    function requestWriteAccess() {
+        const message = prompt('Enter a message for the admin:');
+        if (message) {
+            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
+            toast.success('Request sent to admin!');
         }
     }
 
@@ -528,11 +580,24 @@ const EditorPage = () => {
                             className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {
                                 setActivePanel('save');
-                                setShowConfirmDownload(true);
+                                saveContentsToServer();
+                                setTimeout(() => {
+                                    setActivePanel(lastPersistentPanel);
+                                }, 1000);
                             }} 
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
+                        </button>
+                        <button 
+                            className={`activity-btn ${activePanel === 'download' ? 'activity-btn--active' : ''}`} 
+                            onClick={() => {
+                                setActivePanel('download');
+                                setShowConfirmDownload(true);
+                            }} 
+                            title="Download Project"
+                        >
+                            <Download size={22} strokeWidth={1.5} />
                         </button>
                     </div>
                 </div>
@@ -658,6 +723,52 @@ const EditorPage = () => {
                 />
             )}
 
+            {/* Confirm Download Modal */}
+            {showConfirmDownload && (
+                <div className="modal-overlay">
+                    <div className="unsaved-modal">
+                        <div className="unsaved-icon" aria-hidden="true">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="1.6" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 3v10" />
+                                <path d="M8 9l4 4 4-4" />
+                                <path d="M4 17.5A2.5 2.5 0 0 1 6.5 15h11A2.5 2.5 0 0 1 20 17.5V19H4v-1.5z" />
+                            </svg>
+                        </div>
+                        <h2>Confirm Download?</h2>
+                        <p>Do you want to download this project as a ZIP file?</p>
+                        <div className="unsaved-actions">
+                            <button className="unsaved-btn save" onClick={handleDownload}>Download</button>
+                            <button className="unsaved-btn cancel" onClick={() => {
+                                setShowConfirmDownload(false);
+                                setTimeout(() => {
+                                    setActivePanel(lastPersistentPanel);
+                                }, 1000);
+                            }}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirm Leave Modal */}
+            {showLeaveConfirm && (
+                <div className="modal-overlay">
+                    <div className="unsaved-modal">
+                        <div className="unsaved-icon" aria-hidden="true">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="1.6" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <circle cx="12" cy="17" r="0.5" fill="#ffb347" />
+                            </svg>
+                        </div>
+                        <h2>Unsaved Changes?</h2>
+                        <p>You have unsaved changes. Leaving now may lose local edits. What would you like to do?</p>
+                        <div className="unsaved-actions">
+                            <button className="unsaved-btn save" onClick={handleSaveAndStay}>Save &amp; Stay</button>
+                            <button className="unsaved-btn leave" onClick={confirmExit}>Leave Anyway</button>
+                            <button className="unsaved-btn cancel" onClick={() => setShowLeaveConfirm(false)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
             {showConfirmDownload && (
                 <ConfirmModal
                     isOpen={showConfirmDownload}

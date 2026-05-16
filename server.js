@@ -150,6 +150,24 @@ io.on('connection', (socket) => {
     reply(true, '');
   });
 
+  socket.on(ACTIONS.FS_SAVE, ({ roomId, fileContents }, ack) => {
+    const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
+
+    if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
+
+    if (!fileContents || typeof fileContents !== 'object') {
+      reply(false, 'Invalid save payload: fileContents must be an object.');
+      return;
+    }
+
+    roomState[roomId].fileContents = {
+      ...roomState[roomId].fileContents,
+      ...fileContents,
+    };
+
+    reply(true, '');
+  });
+
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
     const fs = roomState[roomId].fileSystem;
