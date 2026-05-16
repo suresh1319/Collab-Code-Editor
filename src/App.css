@@ -385,6 +385,21 @@
   overflow: hidden;
   transition: background 0.3s ease;
 }
+.resizer {
+  width: 8px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+.resizer:hover {
+  background: rgba(74, 237, 136, 0.14);
+}
+@media (max-width: 900px) {
+  .resizer {
+    width: 6px;
+  }
+}
 .panel-header {
   padding: 10px 14px 8px;
   border-bottom: 1px solid var(--border-color);

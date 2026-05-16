@@ -26,6 +26,8 @@ import InviteModal from '../components/InviteModal';
 import Preview from '../components/Preview';
 import SupportModal from '../components/SupportModal';
 import EditRequestsPanel from '../components/EditRequestsPanel';
+import ConfirmModal from '../components/ConfirmModal';
+import LeaveRoomModal from '../components/LeaveRoomModal';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
@@ -43,8 +45,19 @@ const EditorPage = () => {
     const [showPreview, setShowPreview] = useState(true);
     const [editRequests, setEditRequests] = useState([]);
     const [lastChangeTime, setLastChangeTime] = useState(Date.now());
+    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
+    const [showLeaveModal, setShowLeaveModal] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
+    const [sideWidth, setSideWidth] = useState(() => {
+        const saved = localStorage.getItem('sideWidth');
+        return saved ? Number(saved) : 260;
+    });
+    const resizingRef = useRef(false);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(260);
+    const MIN_SIDE_WIDTH = 180;
+    const MAX_SIDE_WIDTH = 520;
 
     useEffect(() => {
         if (theme === 'light') {
@@ -54,6 +67,46 @@ const EditorPage = () => {
         }
         localStorage.setItem('theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        localStorage.setItem('sideWidth', sideWidth);
+    }, [sideWidth]);
+
+    const updateSideWidth = useCallback((clientX) => {
+        const delta = clientX - startXRef.current;
+        const maxWidth = Math.min(MAX_SIDE_WIDTH, window.innerWidth - 320);
+        const nextWidth = startWidthRef.current + delta;
+        setSideWidth(Math.max(MIN_SIDE_WIDTH, Math.min(maxWidth, nextWidth)));
+    }, []);
+
+    const handleMouseMove = useCallback((event) => {
+        if (!resizingRef.current) return;
+        event.preventDefault();
+        updateSideWidth(event.clientX);
+    }, [updateSideWidth]);
+
+    const stopResizing = useCallback(() => {
+        if (!resizingRef.current) return;
+        resizingRef.current = false;
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', stopResizing);
+    }, [handleMouseMove]);
+
+    const startResizing = (event) => {
+        event.preventDefault();
+        resizingRef.current = true;
+        startXRef.current = event.clientX;
+        startWidthRef.current = sideWidth;
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', stopResizing);
+    };
+
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [handleMouseMove, stopResizing]);
 
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
@@ -74,6 +127,7 @@ const EditorPage = () => {
 
     // Track file contents for download
     const fileContentsRef = useRef({});
+    const [fileContentsSnapshot, setFileContentsSnapshot] = useState({});
     const editorsRef = useRef({});
     const initialContentsRef = useRef({}); // fileId → string (for uploads)
     const uploadFileInputRef = useRef(null);
@@ -124,12 +178,15 @@ const EditorPage = () => {
                         <i style={{ color: '#555' }}>"{message}"</i><br /><br />
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <button onClick={() => {
-                                socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId: requesterSocketId, canWrite: true });
+                                socketRef.current.emit(ACTIONS.APPROVE_CODE_EDIT, { roomId, requesterSocketId });
                                 toast.dismiss(t.id);
                             }} style={{ background: '#50fa7b', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>
                                 Approve
                             </button>
-                            <button onClick={() => toast.dismiss(t.id)}
+                            <button onClick={() => {
+                                socketRef.current.emit(ACTIONS.DENY_CODE_EDIT, { roomId, requesterSocketId });
+                                toast.dismiss(t.id);
+                            }}
                                 style={{ background: '#ff5555', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>
                                 Deny
                             </button>
@@ -138,14 +195,33 @@ const EditorPage = () => {
                 ), { duration: 10000, position: 'top-center' });
             });
 
+            socketRef.current.on(ACTIONS.APPROVE_CODE_EDIT, ({ canWrite }) => {
+                if (canWrite !== undefined) setCanWrite(canWrite);
+                toast.success('Your edit request was approved.');
+            });
+
+            socketRef.current.on(ACTIONS.DENY_CODE_EDIT, () => {
+                toast.error('Your edit request was denied.');
+            });
+
             socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, userName }) => {
                 toast.success(`${userName} left the room.`);
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
-
             socketRef.current.on(ACTIONS.RECEIVE_CODE_EDIT, (request) => {
                 setEditRequests(prev => [...prev, request]);
                 toast.success(`${request.userName} sent an edit request on ${request.fileName}`);
+            // Show a toast when the server rejects an action due to insufficient permissions.
+            // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
+            // reserved 'error' event which may fire with different payload shapes.
+            socketRef.current.on(ACTIONS.PERMISSION_DENIED, (payload) => {
+                const message =
+                    typeof payload === 'string'
+                        ? payload
+                        : payload && typeof payload === 'object' && 'message' in payload
+                            ? payload.message
+                            : 'Permission denied.';
+                toast.error(message);
             });
 
             // File system sync
@@ -158,21 +234,49 @@ const EditorPage = () => {
                         }
                     });
                     setLastChangeTime(Date.now());
+                    Object.entries(fileContents).forEach(([k, v]) => {
+                        fileContentsRef.current[k] = v;
+                    });
+                    setFileContentsSnapshot(prev => ({ ...prev, ...fileContents }));
                 }
                 setFileSystem(fs);
-                // Auto-open the first file if none open
+
+                // Compute next open files and active file outside of updaters
+                // to avoid nesting setState calls inside functional updaters
+                // (React Strict Mode double-invokes updaters to detect impurities).
                 setOpenFiles(prev => {
-                    if (prev.length === 0) {
+                    const next = prev.filter(id => fs[id]);
+                    if (next.length === 0) {
                         const root = fs['root'];
                         if (root && root.children && root.children.length > 0) {
                             const firstFileId = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFileId) {
-                                setActiveFileId(firstFileId);
-                                return [firstFileId];
-                            }
+                            if (firstFileId) return [firstFileId];
                         }
                     }
-                    return prev;
+                    return next;
+                });
+
+                // Update activeFileId separately — not nested inside setOpenFiles
+                setActiveFileId(cur => {
+                    if (cur && !fs[cur]) {
+                        // Active file was deleted — pick the first surviving open file
+                        // (openFiles state may not be updated yet, so scan fs directly)
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                        return null;
+                    }
+                    // Auto-select first file if nothing is active
+                    if (!cur) {
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                    }
+                    return cur;
                 });
             });
         };
@@ -185,26 +289,33 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.RECEIVE_CODE_EDIT);
+                socketRef.current.off(ACTIONS.APPROVE_CODE_EDIT);
+                socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
+                socketRef.current.off(ACTIONS.PERMISSION_DENIED);
             }
         };
     }, []);
 
     // ---- File system event handlers ----
+    // Each handler checks canWrite before emitting to avoid sending events
+    // that the server will reject, preventing false success states.
     const handleCreateNode = useCallback((node) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleDeleteNode = useCallback((nodeId) => {
-        // Close tab if open
-        setOpenFiles(prev => prev.filter(id => id !== nodeId));
-        setActiveFileId(prev => prev === nodeId ? null : prev);
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
+        // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
+        // to confirm the deletion, preventing stale UI if the server rejects.
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_RENAME_NODE, { roomId, nodeId, newName });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleFileClick = useCallback((fileId) => {
         setActiveFileId(fileId);
@@ -227,6 +338,7 @@ const EditorPage = () => {
     const handleCodeChange = useCallback((fileId, value) => {
         fileContentsRef.current[fileId] = value;
         setLastChangeTime(Date.now());
+        setFileContentsSnapshot(prev => ({ ...prev, [fileId]: value }));
     }, []);
 
     const handleEditorReady = useCallback((fileId, editorInstance) => {
@@ -247,7 +359,29 @@ const EditorPage = () => {
         }
     }
 
-    function leaveRoom() { reactNavigator('/'); }
+    function leaveRoom() { setShowLeaveModal(true); }
+
+    function handleLeaveAnyway() {
+        setShowLeaveModal(false);
+        reactNavigator('/');
+    }
+
+    async function handleSaveLeave() {
+        // Download first, then navigate away
+        const contents = { ...fileContentsRef.current };
+        for (const [fileId, editor] of Object.entries(editorsRef.current)) {
+            if (editor && editor.getValue) contents[fileId] = editor.getValue();
+        }
+        try {
+            await downloadProject(fileSystem, contents);
+            toast.success('Project downloaded!');
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error('Download failed.');
+        }
+        setShowLeaveModal(false);
+        reactNavigator('/');
+    }
 
     function togglePermission(targetSocketId, currentCanWrite) {
         if (!isAdmin) return;
@@ -283,16 +417,32 @@ const EditorPage = () => {
     };
 
     async function handleDownload() {
+        setShowConfirmDownload(false);
         const contents = { ...fileContentsRef.current };
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
         }
-        await downloadProject(fileSystem, contents);
-        toast.success('Project downloaded!');
-        // Revert active icon
-        setTimeout(() => {
-            setActivePanel(lastPersistentPanel);
-        }, 1000);
+        if (!fileSystem || !fileSystem['root']) {
+            toast.error('File system not ready. Please try again.');
+            // Revert active icon
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
+            return;
+        }
+
+        try {
+            await downloadProject(fileSystem, contents);
+            toast.success('Project downloaded!');
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error('Download failed. Please try again.');
+        } finally {
+            // Revert active icon
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
+        }
     }
 
     // ---- Upload handler ----
@@ -322,6 +472,7 @@ const EditorPage = () => {
         // Defensive client-side guard — server also enforces this
         if (!canWrite) {
             toast.error('You do not have permission to upload files.');
+            setActivePanel(lastPersistentPanel);
             return;
         }
 
@@ -525,6 +676,8 @@ const EditorPage = () => {
                                 setActivePanel('save');
                                 handleDownload();
                             }}
+                                setShowConfirmDownload(true);
+                            }} 
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
@@ -547,6 +700,11 @@ const EditorPage = () => {
                     <div className="side-panel">
                         {activePanel === 'explorer' && (
                             <>
+                {['explorer', 'users'].includes(activePanel) && (
+                    <>
+                        <div className="side-panel" style={{ width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}>
+                            {activePanel === 'explorer' && (
+                                <>
                                 <div className="panel-header">
                                     <span className="panel-title">
                                         <FolderOpen size={13} className="panel-title-icon" />
@@ -615,6 +773,8 @@ const EditorPage = () => {
                             />
                         )}
                     </div>
+                    <div className="resizer" onMouseDown={startResizing} />
+                </>
                 )}
 
                 {/* ── Main Editor Area ── */}
@@ -665,6 +825,27 @@ const EditorPage = () => {
                                         <p>Select a file from the explorer to start editing</p>
                                         {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                                     </div>
+                    {/* Editor */}
+                    {socketReady && activeFileId && activeFile ? (
+                        <Editor
+                            key={activeFileId}
+                            socketRef={socketRef}
+                            roomId={roomId}
+                            fileId={activeFileId}
+                            fileName={activeFile.name}
+                            onCodeChange={handleCodeChange}
+                            onEditorReady={handleEditorReady}
+                            userName={location.state?.userName}
+                            canWrite={canWrite}
+                            editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                            initialContent={initialContentsRef.current[activeFileId] || ''}
+                            fileContentsSnapshot={fileContentsSnapshot}
+                        />
+                    ) : (
+                        <div className="editor-empty">
+                            <div className="editor-empty-inner">
+                                <div className="editor-empty-logo">
+                                    <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
                                 </div>
                             )}
 
@@ -705,6 +886,26 @@ const EditorPage = () => {
                 <SupportModal
                     onClose={() => {
                         setShowSupport(false);
+                        setActivePanel(lastPersistentPanel);
+                    }}
+                />
+            )}
+
+            <LeaveRoomModal
+                isOpen={showLeaveModal}
+                onClose={() => setShowLeaveModal(false)}
+                onLeaveAnyway={handleLeaveAnyway}
+                onSaveLeave={handleSaveLeave}
+            />
+
+            {showConfirmDownload && (
+                <ConfirmModal
+                    isOpen={showConfirmDownload}
+                    title="Confirm Download"
+                    message="Do you want to download this project?"
+                    onConfirm={handleDownload}
+                    onClose={() => {
+                        setShowConfirmDownload(false);
                         setActivePanel(lastPersistentPanel);
                     }}
                 />
