@@ -7,7 +7,7 @@ const path = require('path');
 const ACTIONS = require('./src/Actions');
 const WebSocket = require('ws');
 const setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 
 require('dotenv').config();
 
@@ -52,8 +52,17 @@ const io = new Server(server, {
 
 const userSocketMap = {};
 const socketRoomMap = {};
-// roomState: { admin, permissions, fileSystem }
+// roomState: { admin, permissions, fileSystem, fileContents }
 const roomState = {};
+
+// ---- Permission helper ----
+// Returns true if socket is the room admin OR has been granted write access.
+function canWriteToRoom(socket, roomId) {
+  const room = roomState[roomId];
+  if (!room) return false;
+  if (room.admin === socket.id) return true;
+  return room.permissions?.[socket.id] === true;
+}
 
 // ---- File System Helpers ----
 function createDefaultFileSystem() {
@@ -89,7 +98,7 @@ io.on('connection', (socket) => {
         admin: socket.id,
         permissions: {},
         fileSystem: createDefaultFileSystem(),
-        fileContents: {},
+        fileContents: {}, // stores uploaded file contents keyed by fileId
       };
     }
 
@@ -105,6 +114,8 @@ io.on('connection', (socket) => {
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
     // Send current file system AND any stored file contents in one atomic emit.
+    // Combining both into a single frame eliminates the race where FS_SYNC triggers
+    // an Editor mount before FS_CONTENTS_SYNC has seeded initialContentsRef.
     socket.emit(ACTIONS.FS_SYNC, {
       fileSystem: roomState[roomId].fileSystem,
       fileContents: roomState[roomId].fileContents,
@@ -152,6 +163,11 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     // node: { id, name, type, parentId }
     fs[node.id] = node;
@@ -164,6 +180,11 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_DELETE_NODE, ({ roomId, nodeId }) => {
     if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     // Recursively collect all node ids to delete
     const toDelete = [];
@@ -187,11 +208,68 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {
     if (!roomState[roomId]) return;
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      return;
+    }
     const fs = roomState[roomId].fileSystem;
     if (fs[nodeId]) {
       fs[nodeId].name = newName;
       io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
     }
+  });
+
+  // ---- Upload Batch Event ----
+  // Receives nodes (folders + files) and their text contents in one shot.
+  // This ensures all collaborators (including late joiners) get both the file
+  // tree structure AND the actual file content — fixing the content-not-syncing bug.
+  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }, ack) => {
+    const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
+
+    if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
+    // Server-side permission check — reject read-only users
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
+      reply(false, 'You do not have permission to upload files in this room.');
+      return;
+    }
+
+    const fs = roomState[roomId].fileSystem;
+
+    // Merge nodes into file system in the order provided (folders before files)
+    if (!Array.isArray(nodes)) {
+      socket.emit('error', { message: 'Invalid upload payload: nodes must be an array.' });
+      reply(false, 'Invalid upload payload: nodes must be an array.');
+      return;
+    }
+    for (const node of nodes) {
+      fs[node.id] = node;
+      if (fs[node.parentId]) {
+        if (!fs[node.parentId].children) fs[node.parentId].children = [];
+        // Avoid adding duplicate child references
+        if (!fs[node.parentId].children.includes(node.id)) {
+          fs[node.parentId].children.push(node.id);
+        }
+      }
+    }
+
+    // Store uploaded file contents server-side for late joiners
+    if (fileContents && typeof fileContents === 'object') {
+      Object.assign(roomState[roomId].fileContents, fileContents);
+    }
+
+    // Broadcast updated file tree AND contents atomically in one frame.
+    // Mirrors the JOIN-path fix: bundling both into FS_SYNC ensures the client's
+    // FS_SYNC handler seeds initialContentsRef before setFileSystem triggers a render,
+    // eliminating the race for all users already in the room when a file is uploaded.
+    io.to(roomId).emit(ACTIONS.FS_SYNC, {
+      fileSystem: { ...fs },
+      fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
+    });
+
+    // Acknowledge success to the uploader so the client can show the toast
+    reply(true, '');
   });
 
   // ---- Access Control ----
