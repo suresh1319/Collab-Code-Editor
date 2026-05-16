@@ -14,8 +14,6 @@ const ACTIONS = {
     FS_CREATE_NODE: 'fs_create_node',
     FS_DELETE_NODE: 'fs_delete_node',
     FS_RENAME_NODE: 'fs_rename_node',
-    // Server emits this when a read-only user tries a write operation
-    PERMISSION_DENIED: 'permission_denied',
     FS_UPLOAD_BATCH: 'fs_upload_batch',
 };
 

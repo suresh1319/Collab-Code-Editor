@@ -184,19 +184,6 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
-            // Show a toast when the server rejects an action due to insufficient permissions.
-            // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
-            // reserved 'error' event which may fire with different payload shapes.
-            socketRef.current.on(ACTIONS.PERMISSION_DENIED, (payload) => {
-                const message =
-                    typeof payload === 'string'
-                        ? payload
-                        : payload && typeof payload === 'object' && 'message' in payload
-                            ? payload.message
-                            : 'Permission denied.';
-                toast.error(message);
-            });
-
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
@@ -207,43 +194,19 @@ const EditorPage = () => {
                     });
                 }
                 setFileSystem(fs);
-
-                // Compute next open files and active file outside of updaters
-                // to avoid nesting setState calls inside functional updaters
-                // (React Strict Mode double-invokes updaters to detect impurities).
+                // Auto-open the first file if none open
                 setOpenFiles(prev => {
-                    const next = prev.filter(id => fs[id]);
-                    if (next.length === 0) {
+                    if (prev.length === 0) {
                         const root = fs['root'];
                         if (root && root.children && root.children.length > 0) {
                             const firstFileId = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFileId) return [firstFileId];
+                            if (firstFileId) {
+                                setActiveFileId(firstFileId);
+                                return [firstFileId];
+                            }
                         }
                     }
-                    return next;
-                });
-
-                // Update activeFileId separately — not nested inside setOpenFiles
-                setActiveFileId(cur => {
-                    if (cur && !fs[cur]) {
-                        // Active file was deleted — pick the first surviving open file
-                        // (openFiles state may not be updated yet, so scan fs directly)
-                        const root = fs['root'];
-                        if (root && root.children) {
-                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFile) return firstFile;
-                        }
-                        return null;
-                    }
-                    // Auto-select first file if nothing is active
-                    if (!cur) {
-                        const root = fs['root'];
-                        if (root && root.children) {
-                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFile) return firstFile;
-                        }
-                    }
-                    return cur;
+                    return prev;
                 });
             });
         };
@@ -256,30 +219,25 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.FS_SYNC);
-                socketRef.current.off(ACTIONS.PERMISSION_DENIED);
             }
         };
     }, []);
 
     // ---- File system event handlers ----
-    // Each handler checks canWrite before emitting to avoid sending events
-    // that the server will reject, preventing false success states.
     const handleCreateNode = useCallback((node) => {
-        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-    }, [roomId, canWrite]);
+    }, [roomId]);
 
     const handleDeleteNode = useCallback((nodeId) => {
-        if (!canWrite) { toast.error('You do not have write permission.'); return; }
-        // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
-        // to confirm the deletion, preventing stale UI if the server rejects.
+        // Close tab if open
+        setOpenFiles(prev => prev.filter(id => id !== nodeId));
+        setActiveFileId(prev => prev === nodeId ? null : prev);
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
-    }, [roomId, canWrite]);
+    }, [roomId]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
-        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_RENAME_NODE, { roomId, nodeId, newName });
-    }, [roomId, canWrite]);
+    }, [roomId]);
 
     const handleFileClick = useCallback((fileId) => {
         setActiveFileId(fileId);
@@ -380,10 +338,6 @@ const EditorPage = () => {
         }
         e.target.value = '';
 
-        // Client-side permission guard — prevents emitting FS_CREATE_NODE unconditionally
-        // and showing a false success toast when the server would reject the operation.
-        if (!canWrite) {
-            toast.error('You do not have write permission in this room.');
         // Defensive client-side guard — server also enforces this
         if (!canWrite) {
             toast.error('You do not have permission to upload files.');
