@@ -4,10 +4,10 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
-import { crypto } from 'node:crypto';
+import { webcrypto } from 'node:crypto';
 
 Object.defineProperty(globalThis, 'crypto', {
   value: {
-    getRandomValues: (arr) => crypto.getRandomValues(arr),
+    getRandomValues: (arr) => webcrypto.getRandomValues(arr),
   },
 });
