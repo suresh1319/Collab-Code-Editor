@@ -5,7 +5,6 @@ import {
     Users,
     Upload,
     FolderUp,
-    Download,
     KeyRound,
     Save,
     Sun,
@@ -22,8 +21,8 @@ import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { downloadProject } from '../utils/downloadProject';
 import { initSocket } from '../socket';
+import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
 import {
     useLocation,
@@ -112,8 +111,6 @@ const EditorPage = () => {
     const [fileSystem, setFileSystem] = useState({});
     const [openFiles, setOpenFiles] = useState([]);
     const [activeFileId, setActiveFileId] = useState(null);
-    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
 
     // Track file contents for download
     const fileContentsRef = useRef({});
@@ -198,6 +195,19 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
+            // Show a toast when the server rejects an action due to insufficient permissions.
+            // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
+            // reserved 'error' event which may fire with different payload shapes.
+            socketRef.current.on(ACTIONS.PERMISSION_DENIED, (payload) => {
+                const message =
+                    typeof payload === 'string'
+                        ? payload
+                        : payload && typeof payload === 'object' && 'message' in payload
+                            ? payload.message
+                            : 'Permission denied.';
+                toast.error(message);
+            });
+
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
@@ -212,19 +222,43 @@ const EditorPage = () => {
                     setFileContentsSnapshot(prev => ({ ...prev, ...fileContents }));
                 }
                 setFileSystem(fs);
-                // Auto-open the first file if none open
+
+                // Compute next open files and active file outside of updaters
+                // to avoid nesting setState calls inside functional updaters
+                // (React Strict Mode double-invokes updaters to detect impurities).
                 setOpenFiles(prev => {
-                    if (prev.length === 0) {
+                    const next = prev.filter(id => fs[id]);
+                    if (next.length === 0) {
                         const root = fs['root'];
                         if (root && root.children && root.children.length > 0) {
                             const firstFileId = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFileId) {
-                                setActiveFileId(firstFileId);
-                                return [firstFileId];
-                            }
+                            if (firstFileId) return [firstFileId];
                         }
                     }
-                    return prev;
+                    return next;
+                });
+
+                // Update activeFileId separately — not nested inside setOpenFiles
+                setActiveFileId(cur => {
+                    if (cur && !fs[cur]) {
+                        // Active file was deleted — pick the first surviving open file
+                        // (openFiles state may not be updated yet, so scan fs directly)
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                        return null;
+                    }
+                    // Auto-select first file if nothing is active
+                    if (!cur) {
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                    }
+                    return cur;
                 });
             });
         };
@@ -239,25 +273,30 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.APPROVE_CODE_EDIT);
                 socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
+                socketRef.current.off(ACTIONS.PERMISSION_DENIED);
             }
         };
     }, []);
 
     // ---- File system event handlers ----
+    // Each handler checks canWrite before emitting to avoid sending events
+    // that the server will reject, preventing false success states.
     const handleCreateNode = useCallback((node) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleDeleteNode = useCallback((nodeId) => {
-        // Close tab if open
-        setOpenFiles(prev => prev.filter(id => id !== nodeId));
-        setActiveFileId(prev => prev === nodeId ? null : prev);
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
+        // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
+        // to confirm the deletion, preventing stale UI if the server rejects.
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_RENAME_NODE, { roomId, nodeId, newName });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleFileClick = useCallback((fileId) => {
         setActiveFileId(fileId);
@@ -300,52 +339,19 @@ const EditorPage = () => {
         }
     }
 
-    function leaveRoom() {
-        // Determine if there are unsaved changes by comparing current contents to initial contents
-        const hasUnsaved = Object.keys(fileContentsRef.current || {}).some(id => (fileContentsRef.current[id] || '') !== (initialContentsRef.current[id] || ''));
-        if (hasUnsaved) {
-            setShowLeaveConfirm(true);
-        } else {
-            reactNavigator('/');
+    function leaveRoom() { reactNavigator('/'); }
+
+    function togglePermission(targetSocketId, currentCanWrite) {
+        if (!isAdmin) return;
+        socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId, canWrite: !currentCanWrite });
+    }
+
+    function requestWriteAccess() {
+        const message = prompt('Enter a message for the admin:');
+        if (message) {
+            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
+            toast.success('Request sent to admin!');
         }
-    }
-
-    function collectCurrentContents() {
-        const contents = { ...fileContentsRef.current };
-        for (const [fileId, editor] of Object.entries(editorsRef.current)) {
-            if (editor && editor.getValue) contents[fileId] = editor.getValue();
-        }
-        return contents;
-    }
-
-    async function saveContentsToServer() {
-        const contents = collectCurrentContents();
-
-        return new Promise((resolve) => {
-            if (!socketRef.current) {
-                toast.error('Socket is not connected.');
-                resolve(false);
-                return;
-            }
-
-            socketRef.current.emit(ACTIONS.FS_SAVE, { roomId, fileContents: contents }, ({ success, message }) => {
-                if (success) {
-                    Object.entries(contents).forEach(([k, v]) => {
-                        initialContentsRef.current[k] = v;
-                        fileContentsRef.current[k] = v;
-                    });
-                    toast.success('Project saved on server!');
-                } else {
-                    toast.error(message || 'Save failed.');
-                }
-                resolve(success);
-            });
-        });
-    }
-
-    async function handleSaveAndStay() {
-        const saved = await saveContentsToServer();
-        if (saved) setShowLeaveConfirm(false);
     }
 
     async function handleDownload() {
@@ -370,27 +376,10 @@ const EditorPage = () => {
             console.error('Download failed:', err);
             toast.error('Download failed. Please try again.');
         } finally {
+            // Revert active icon
             setTimeout(() => {
                 setActivePanel(lastPersistentPanel);
             }, 1000);
-        }
-    }
-
-    function confirmExit() {
-        try { socketRef.current?.disconnect(); } catch (e) { }
-        reactNavigator('/');
-    }
-
-    function togglePermission(targetSocketId, currentCanWrite) {
-        if (!isAdmin) return;
-        socketRef.current.emit(ACTIONS.TOGGLE_PERMISSION, { roomId, targetSocketId, canWrite: !currentCanWrite });
-    }
-
-    function requestWriteAccess() {
-        const message = prompt('Enter a message for the admin:');
-        if (message) {
-            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
-            toast.success('Request sent to admin!');
         }
     }
 
@@ -421,6 +410,7 @@ const EditorPage = () => {
         // Defensive client-side guard — server also enforces this
         if (!canWrite) {
             toast.error('You do not have permission to upload files.');
+            setActivePanel(lastPersistentPanel);
             return;
         }
 
@@ -608,24 +598,11 @@ const EditorPage = () => {
                             className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {
                                 setActivePanel('save');
-                                saveContentsToServer();
-                                setTimeout(() => {
-                                    setActivePanel(lastPersistentPanel);
-                                }, 1000);
+                                setShowConfirmDownload(true);
                             }} 
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
-                        </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'download' ? 'activity-btn--active' : ''}`} 
-                            onClick={() => {
-                                setActivePanel('download');
-                                setShowConfirmDownload(true);
-                            }} 
-                            title="Download Project"
-                        >
-                            <Download size={22} strokeWidth={1.5} />
                         </button>
                     </div>
                 </div>
@@ -752,31 +729,6 @@ const EditorPage = () => {
                 />
             )}
 
-            {/* Confirm Download handled by reusable ConfirmModal below. */}
-
-            {/* Confirm Leave Modal */}
-            {showLeaveConfirm && (
-                <div className="modal-overlay">
-                    <div className="unsaved-modal">
-                        <div className="unsaved-icon" aria-hidden="true">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="1.6" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                                <line x1="12" y1="9" x2="12" y2="13" />
-                                <circle cx="12" cy="17" r="0.5" fill="#ffb347" />
-                            </svg>
-                        </div>
-                        <h2>Unsaved Changes?</h2>
-                        <p>You have unsaved changes. Leaving now may lose local edits. What would you like to do?</p>
-                        <div className="unsaved-actions">
-                            <button className="unsaved-btn save" onClick={handleSaveAndStay}>Save &amp; Stay</button>
-                            <button className="unsaved-btn leave" onClick={confirmExit}>Leave Anyway</button>
-                            <button className="unsaved-btn cancel" onClick={() => setShowLeaveConfirm(false)}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Confirm Download (reusable modal) */}
             {showConfirmDownload && (
                 <ConfirmModal
                     isOpen={showConfirmDownload}
