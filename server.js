@@ -90,7 +90,7 @@ io.on('connection', (socket) => {
     if (eventName === ACTIONS.CODE_CHANGE) {
       const roomId = socketRoomMap[socket.id];
       if (!roomId || !canWriteToRoom(socket, roomId)) {
-        socket.emit('error', { message: 'You do not have permission to edit code in this room.' });
+        socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to edit code in this room.' });
         return;
       }
     }
@@ -136,6 +136,11 @@ io.on('connection', (socket) => {
     const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
 
     if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
+    if (!canWriteToRoom(socket, roomId)) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to upload files in this room.' });
+      reply(false, 'Permission denied.');
+      return;
+    }
 
     const fs = roomState[roomId].fileSystem;
 
