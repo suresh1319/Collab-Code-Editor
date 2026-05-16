@@ -21,6 +21,7 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { downloadProject } from '../utils/downloadProject';
 import { initSocket } from '../socket';
 import { v4 as uuid } from 'uuid';
@@ -34,7 +35,6 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
-    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
     const [sideWidth, setSideWidth] = useState(() => {
@@ -752,31 +752,7 @@ const EditorPage = () => {
                 />
             )}
 
-            {/* Confirm Download Modal */}
-            {showConfirmDownload && (
-                <div className="modal-overlay">
-                    <div className="unsaved-modal">
-                        <div className="unsaved-icon" aria-hidden="true">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="1.6" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 3v10" />
-                                <path d="M8 9l4 4 4-4" />
-                                <path d="M4 17.5A2.5 2.5 0 0 1 6.5 15h11A2.5 2.5 0 0 1 20 17.5V19H4v-1.5z" />
-                            </svg>
-                        </div>
-                        <h2>Confirm Download?</h2>
-                        <p>Do you want to download this project as a ZIP file?</p>
-                        <div className="unsaved-actions">
-                            <button className="unsaved-btn save" onClick={handleDownload}>Download</button>
-                            <button className="unsaved-btn cancel" onClick={() => {
-                                setShowConfirmDownload(false);
-                                setTimeout(() => {
-                                    setActivePanel(lastPersistentPanel);
-                                }, 1000);
-                            }}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Confirm Download handled by reusable ConfirmModal below. */}
 
             {/* Confirm Leave Modal */}
             {showLeaveConfirm && (
@@ -798,6 +774,9 @@ const EditorPage = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Confirm Download (reusable modal) */}
             {showConfirmDownload && (
                 <ConfirmModal
                     isOpen={showConfirmDownload}
