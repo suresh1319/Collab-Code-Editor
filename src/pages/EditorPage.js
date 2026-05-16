@@ -34,6 +34,7 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
+    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
     const [sideWidth, setSideWidth] = useState(() => {
