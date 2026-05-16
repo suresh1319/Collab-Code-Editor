@@ -37,6 +37,15 @@ const EditorPage = () => {
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
+    const [sideWidth, setSideWidth] = useState(() => {
+        const saved = localStorage.getItem('sideWidth');
+        return saved ? Number(saved) : 260;
+    });
+    const resizingRef = useRef(false);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(260);
+    const MIN_SIDE_WIDTH = 180;
+    const MAX_SIDE_WIDTH = 520;
 
     useEffect(() => {
         if (theme === 'light') {
@@ -46,6 +55,46 @@ const EditorPage = () => {
         }
         localStorage.setItem('theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        localStorage.setItem('sideWidth', sideWidth);
+    }, [sideWidth]);
+
+    const updateSideWidth = useCallback((clientX) => {
+        const delta = clientX - startXRef.current;
+        const maxWidth = Math.min(MAX_SIDE_WIDTH, window.innerWidth - 320);
+        const nextWidth = startWidthRef.current + delta;
+        setSideWidth(Math.max(MIN_SIDE_WIDTH, Math.min(maxWidth, nextWidth)));
+    }, []);
+
+    const handleMouseMove = useCallback((event) => {
+        if (!resizingRef.current) return;
+        event.preventDefault();
+        updateSideWidth(event.clientX);
+    }, [updateSideWidth]);
+
+    const stopResizing = useCallback(() => {
+        if (!resizingRef.current) return;
+        resizingRef.current = false;
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', stopResizing);
+    }, [handleMouseMove]);
+
+    const startResizing = (event) => {
+        event.preventDefault();
+        resizingRef.current = true;
+        startXRef.current = event.clientX;
+        startWidthRef.current = sideWidth;
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', stopResizing);
+    };
+
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [handleMouseMove, stopResizing]);
 
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
@@ -533,9 +582,10 @@ const EditorPage = () => {
 
                 {/* ── Side Panel ── */}
                 {['explorer', 'users'].includes(activePanel) && (
-                    <div className="side-panel">
-                        {activePanel === 'explorer' && (
-                            <>
+                    <>
+                        <div className="side-panel" style={{ width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}>
+                            {activePanel === 'explorer' && (
+                                <>
                                 <div className="panel-header">
                                     <span className="panel-title">
                                         <FolderOpen size={13} className="panel-title-icon" />
@@ -593,6 +643,8 @@ const EditorPage = () => {
                             </>
                         )}
                     </div>
+                    <div className="resizer" onMouseDown={startResizing} />
+                </>
                 )}
 
                 {/* ── Main Editor Area ── */}

@@ -123,6 +123,44 @@ io.on('connection', (socket) => {
   });
 
   // ---- File System Events ----
+  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }, ack) => {
+    const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
+
+    if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
+
+    const fs = roomState[roomId].fileSystem;
+
+    // Merge nodes into file system in the order provided (folders before files)
+    if (!Array.isArray(nodes)) {
+      reply(false, 'Invalid upload payload: nodes must be an array.');
+      return;
+    }
+    for (const node of nodes) {
+      fs[node.id] = node;
+      if (fs[node.parentId]) {
+        if (!fs[node.parentId].children) fs[node.parentId].children = [];
+        // Avoid adding duplicate child references
+        if (!fs[node.parentId].children.includes(node.id)) {
+          fs[node.parentId].children.push(node.id);
+        }
+      }
+    }
+
+    // Store uploaded file contents server-side for late joiners
+    if (fileContents && typeof fileContents === 'object') {
+      Object.assign(roomState[roomId].fileContents, fileContents);
+    }
+
+    // Broadcast updated file tree AND contents atomically in one frame.
+    io.to(roomId).emit(ACTIONS.FS_SYNC, {
+      fileSystem: { ...fs },
+      fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
+    });
+
+    // Acknowledge success to the uploader so the client can show the toast
+    reply(true, '');
+  });
+
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
@@ -162,11 +200,9 @@ io.on('connection', (socket) => {
     if (node && node.parentId && fs[node.parentId]) {
       fs[node.parentId].children = (fs[node.parentId].children || []).filter(c => c !== nodeId);
     }
-    // Also clean up any stored file contents for deleted nodes
-    toDelete.forEach(id => {
-      delete fs[id];
-      delete roomState[roomId].fileContents[id];
-    });
+    // Remove from fileSystem and evict any stored contents for deleted nodes.
+    // Without this, late joiners would receive content for files that no longer exist.
+    toDelete.forEach(id => { delete fs[id]; delete roomState[roomId].fileContents[id]; });
     io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
   });
 
