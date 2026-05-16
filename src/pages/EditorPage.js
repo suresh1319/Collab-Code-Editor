@@ -458,7 +458,7 @@ const EditorPage = () => {
 
     return (
         <div className="app-container">
-            {/* ── Top Navbar ── */}
+            {/* ── Top Navbar (Reverted to Edge-to-Edge Layout) ── */}
             <div className="top-navbar">
                 <div className="top-navbar-left">
                     <Monitor size={16} className="navbar-room-icon" />
@@ -491,8 +491,9 @@ const EditorPage = () => {
                         <button
                             className={`activity-btn ${activePanel === 'explorer' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
-                                setActivePanel('explorer');
-                                setLastPersistentPanel('explorer');
+                                const next = activePanel === 'explorer' ? 'none' : 'explorer';
+                                setActivePanel(next);
+                                if (next !== 'none') setLastPersistentPanel(next);
                             }}
                             title="Explorer"
                         >
@@ -501,8 +502,9 @@ const EditorPage = () => {
                         <button
                             className={`activity-btn ${activePanel === 'users' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
-                                setActivePanel('users');
-                                setLastPersistentPanel('users');
+                                const next = activePanel === 'users' ? 'none' : 'users';
+                                setActivePanel(next);
+                                if (next !== 'none') setLastPersistentPanel(next);
                             }}
                             title={`Connected Users (${clients.length})`}
                         >
@@ -649,6 +651,7 @@ const EditorPage = () => {
 
                 {/* ── Main Editor Area ── */}
                 <div className="editorWrap">
+
                     {/* File tabs */}
                     <FileTabs
                         openFiles={openFiles}
