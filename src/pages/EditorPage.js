@@ -20,6 +20,7 @@ import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
@@ -33,6 +34,7 @@ import {
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
+    const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
 
@@ -133,11 +135,21 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
-            // File system sync — payload now includes fileContents so both arrive
-            // in one atomic frame, eliminating the race where Editor mounts before
-            // FS_CONTENTS_SYNC has had a chance to seed initialContentsRef.
+            // Show a toast when the server rejects an action due to insufficient permissions.
+            // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
+            // reserved 'error' event which may fire with different payload shapes.
+            socketRef.current.on(ACTIONS.PERMISSION_DENIED, (payload) => {
+                const message =
+                    typeof payload === 'string'
+                        ? payload
+                        : payload && typeof payload === 'object' && 'message' in payload
+                            ? payload.message
+                            : 'Permission denied.';
+                toast.error(message);
+            });
+
+            // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
-                // Seed contents first — before any state update that could trigger a render
                 if (fileContents && typeof fileContents === 'object') {
                     Object.entries(fileContents).forEach(([k, v]) => {
                         if (!(k in initialContentsRef.current)) {
@@ -146,29 +158,45 @@ const EditorPage = () => {
                     });
                 }
                 setFileSystem(fs);
-                // Auto-open the first file if none open
+
+                // Compute next open files and active file outside of updaters
+                // to avoid nesting setState calls inside functional updaters
+                // (React Strict Mode double-invokes updaters to detect impurities).
                 setOpenFiles(prev => {
-                    if (prev.length === 0) {
+                    const next = prev.filter(id => fs[id]);
+                    if (next.length === 0) {
                         const root = fs['root'];
                         if (root && root.children && root.children.length > 0) {
                             const firstFileId = root.children.find(id => fs[id]?.type === 'file');
-                            if (firstFileId) {
-                                setActiveFileId(firstFileId);
-                                return [firstFileId];
-                            }
+                            if (firstFileId) return [firstFileId];
                         }
                     }
-                    return prev;
+                    return next;
+                });
+
+                // Update activeFileId separately — not nested inside setOpenFiles
+                setActiveFileId(cur => {
+                    if (cur && !fs[cur]) {
+                        // Active file was deleted — pick the first surviving open file
+                        // (openFiles state may not be updated yet, so scan fs directly)
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                        return null;
+                    }
+                    // Auto-select first file if nothing is active
+                    if (!cur) {
+                        const root = fs['root'];
+                        if (root && root.children) {
+                            const firstFile = root.children.find(id => fs[id]?.type === 'file');
+                            if (firstFile) return firstFile;
+                        }
+                    }
+                    return cur;
                 });
             });
-
-            // Receive uploaded file contents from server (for existing collaborators and late joiners)
-            // Show a toast when the server rejects an action due to insufficient permissions
-            socketRef.current.on('error', ({ message }) => {
-                toast.error(message || 'Permission denied.');
-            });
-
-
         };
         init();
         return () => {
@@ -179,26 +207,30 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
                 socketRef.current.off(ACTIONS.WRITE_ACCESS_REQUESTED);
                 socketRef.current.off(ACTIONS.FS_SYNC);
-                socketRef.current.off('error');
+                socketRef.current.off(ACTIONS.PERMISSION_DENIED);
             }
         };
     }, []);
 
     // ---- File system event handlers ----
+    // Each handler checks canWrite before emitting to avoid sending events
+    // that the server will reject, preventing false success states.
     const handleCreateNode = useCallback((node) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleDeleteNode = useCallback((nodeId) => {
-        // Close tab if open
-        setOpenFiles(prev => prev.filter(id => id !== nodeId));
-        setActiveFileId(prev => prev === nodeId ? null : prev);
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
+        // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
+        // to confirm the deletion, preventing stale UI if the server rejects.
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
+        if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_RENAME_NODE, { roomId, nodeId, newName });
-    }, [roomId]);
+    }, [roomId, canWrite]);
 
     const handleFileClick = useCallback((fileId) => {
         setActiveFileId(fileId);
@@ -256,16 +288,23 @@ const EditorPage = () => {
     }
 
     async function handleDownload() {
+        setShowConfirmDownload(false);
         const contents = { ...fileContentsRef.current };
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
         }
-        await downloadProject(fileSystem, contents);
-        toast.success('Project downloaded!');
-        // Revert active icon
-        setTimeout(() => {
-            setActivePanel(lastPersistentPanel);
-        }, 1000);
+        try {
+            await downloadProject(fileSystem, contents);
+            toast.success('Project downloaded!');
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error('Download failed. Please try again.');
+        } finally {
+            // Revert active icon
+            setTimeout(() => {
+                setActivePanel(lastPersistentPanel);
+            }, 1000);
+        }
     }
 
     // ---- Upload handler ----
@@ -295,6 +334,7 @@ const EditorPage = () => {
         // Defensive client-side guard — server also enforces this
         if (!canWrite) {
             toast.error('You do not have permission to upload files.');
+            setActivePanel(lastPersistentPanel);
             return;
         }
 
@@ -320,9 +360,6 @@ const EditorPage = () => {
         };
 
         const fileReadPromises = files.map(async (file) => {
-            if (isBinary(file.name)) return null;
-            const content = await readFileAsText(file);
-
             let parentId = 'root';
             if (isFolder && file.webkitRelativePath) {
                 const parts = file.webkitRelativePath.split('/');
@@ -334,7 +371,12 @@ const EditorPage = () => {
             }
 
             const fileId = uuid();
+            // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
+
+            // Skip content reading for binary files — their node is still created
+            if (isBinary(file.name)) return null;
+            const content = await readFileAsText(file);
             return { fileId, content };
         });
 
@@ -344,21 +386,17 @@ const EditorPage = () => {
         const fileContents = {};
         for (const { fileId, content } of results) {
             fileContents[fileId] = content;
-            // Also seed our own initialContentsRef so the editor can inject content locally
             initialContentsRef.current[fileId] = content;
         }
 
-        // Send all nodes AND file contents to the server in one batch.
-        // Toast is shown only inside the ack callback — after the server confirms
-        // the upload was accepted and broadcast, preventing contradictory success+error UX.
-        const fileCount = results.length;
+        // Count all file nodes (including binary files that were skipped for content reading).
+        const fileCount = nodesToCreate.filter(n => n.type === 'file').length;
         const folderNodes = nodesToCreate.filter(n => n.type === 'folder').length;
         socketRef.current?.emit(ACTIONS.FS_UPLOAD_BATCH, { roomId, nodes: nodesToCreate, fileContents }, ({ success, message }) => {
             if (success) {
                 toast.success(`Uploaded ${fileCount} file${fileCount !== 1 ? 's' : ''}${folderNodes ? ` in ${folderNodes} folder${folderNodes !== 1 ? 's' : ''}` : ''}`);
             } else {
                 toast.error(message || 'Upload failed.');
-                // Roll back the local initialContentsRef seeds on failure
                 results.forEach(({ fileId }) => { delete initialContentsRef.current[fileId]; });
             }
         });
@@ -425,7 +463,6 @@ const EditorPage = () => {
                     </div>
 
                     <div className="activity-bar-bottom">
-                        {/* Upload buttons are only shown to users with write permission */}
                         {canWrite && (
                             <>
                                 <button 
@@ -485,7 +522,7 @@ const EditorPage = () => {
                             className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
                             onClick={() => {
                                 setActivePanel('save');
-                                handleDownload();
+                                setShowConfirmDownload(true);
                             }} 
                             title="Save Project"
                         >
@@ -609,6 +646,19 @@ const EditorPage = () => {
                         setShowInvite(false);
                         setActivePanel(lastPersistentPanel);
                     }} 
+                />
+            )}
+
+            {showConfirmDownload && (
+                <ConfirmModal
+                    isOpen={showConfirmDownload}
+                    title="Confirm Download"
+                    message="Do you want to download this project?"
+                    onConfirm={handleDownload}
+                    onClose={() => {
+                        setShowConfirmDownload(false);
+                        setActivePanel(lastPersistentPanel);
+                    }}
                 />
             )}
 
