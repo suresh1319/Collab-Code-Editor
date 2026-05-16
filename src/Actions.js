@@ -18,9 +18,6 @@ const ACTIONS = {
     FS_RENAME_NODE: 'fs_rename_node',
     // Uploads: sends nodes + file contents in one batch so content syncs to all collaborators
     FS_UPLOAD_BATCH: 'fs_upload_batch',
-    // Edit Requests
-    REQUEST_CODE_EDIT: 'request_code_edit',
-    RECEIVE_CODE_EDIT: 'receive_code_edit',
 };
 
 module.exports = ACTIONS;
