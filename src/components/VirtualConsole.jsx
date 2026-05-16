@@ -24,15 +24,14 @@ const VirtualConsole = ({
   setOpen,
 }) => {
   const [height, setHeight] = useState(220);
-
   const bottomRef = useRef(null);
   const prevLengthRef = useRef(logs.length);
-  // Keep prevLengthRef in sync
+
   useEffect(() => {
     prevLengthRef.current = logs.length;
   }, [logs.length]);
 
-  // Auto-scroll to bottom when new logs arrive (only if open)
+  // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (open) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,7 +46,8 @@ const VirtualConsole = ({
 
     const onMove = (moveEvent) => {
       const delta = startY - moveEvent.clientY;
-      setHeight(Math.max(120, Math.min(600, startHeight + delta)));
+      // ✅ min is 60px so user can shrink it small
+      setHeight(Math.max(60, Math.min(600, startHeight + delta)));
     };
 
     const onUp = () => {
@@ -63,13 +63,13 @@ const VirtualConsole = ({
   const warnCount = logs.filter((l) => l.type === "warn").length;
   const logCount = logs.filter((l) => l.type !== "separator").length;
 
-  // When fully hidden, render nothing — no collapsed strip left behind
   if (!open) return null;
 
   return (
+    // ✅ FIXED: removed minHeight from inline style — was preventing shrinking
     <div
       className="virtual-console open"
-      style={{ height: `${height}px`, minHeight: `${height}px` }}
+      style={{ height: `${height}px` }}
     >
       {/* Drag handle */}
       <div
@@ -82,19 +82,15 @@ const VirtualConsole = ({
       <div className="console-header">
         <div className="console-header-left" style={{ flex: 1 }}>
           {isRunning && <span className="console-running-dot" />}
-
           <span className="console-title">CONSOLE</span>
-
           {logCount > 0 && (
             <span className="console-log-count">{logCount}</span>
           )}
-
           {errorCount > 0 && (
             <span className="console-badge console-badge--error">
               {errorCount} error{errorCount > 1 ? "s" : ""}
             </span>
           )}
-
           {warnCount > 0 && (
             <span className="console-badge console-badge--warn">
               {warnCount} warn{warnCount > 1 ? "s" : ""}
@@ -131,7 +127,6 @@ const VirtualConsole = ({
                 </div>
               );
             }
-
             return (
               <div
                 key={index}
@@ -141,6 +136,7 @@ const VirtualConsole = ({
                 <span className="console-row-prefix">
                   {LOG_PREFIX[log.type] ?? ">"}
                 </span>
+                {/* ✅ FIXED: pre tag naturally enables horizontal scroll */}
                 <pre className="console-row-text">{log.text}</pre>
               </div>
             );

@@ -792,12 +792,18 @@
 }
 
 /* ---- CodeMirror ---- */
+
 .CodeMirror {
-  min-height: 100vh;
+  height: 100% !important;
+  width: 100%;
   font-size: 17px;
   line-height: 1.6;
   padding-top: 10px;
-  font-family: 'Fira Code', 'Courier New', monospace;
+  font-family: 'Fira Code', 'Courier New', 'monospace';
+}
+
+.CodeMirror-scroll {
+  overflow: auto !important;
 }
 
 /* ---- Yjs Cursors ---- */
@@ -1123,7 +1129,15 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    overflow: hidden;
+    min-height: 0;
+}
+
+.editorWrap {
+    min-height: 0;
+}
+
+.editorWrap > div {
+    min-height: 0;
 }
 
 /* =========================
@@ -1139,6 +1153,7 @@
     overflow: hidden;
     transition: height 0.25s ease;
     flex-shrink: 0;
+    min-height: 0;
 }
 
 .virtual-console.collapsed {
@@ -1264,10 +1279,12 @@
 .console-body {
     flex: 1;
     overflow-y: auto;
+    overflow-x: auto;
     padding: 12px;
     font-family: monospace;
     font-size: 13px;
     background: var(--editor-bg, #111827);
+    min-height: 0;
 }
 
 .console-empty {
@@ -1281,8 +1298,6 @@
     gap: 10px;
     margin-bottom: 8px;
     line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
 }
 
 .console-row-prefix {
@@ -1292,11 +1307,11 @@
 
 .console-row-text {
     margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre;
+    word-break: normal;
     font-family: inherit;
+    overflow-x: visible;
 }
-
 .console-separator {
     margin: 12px 0;
     display: flex;
@@ -1433,4 +1448,21 @@ body[data-theme='light'] .console-toggle-btn {
 
 body[data-theme='light'] .console-toggle-btn:hover {
     background: #d1d5db;
+}
+
+/* ===== CONSOLE RESIZE FIX ===== */
+.virtual-console {
+    flex-shrink: 0;
+    overflow: hidden;
+    min-height: 0 !important;
+}
+
+.virtual-console .console-body {
+    overflow-y: auto;
+    overflow-x: auto;
+    min-height: 0;
+}
+
+.console-row {
+    flex-shrink: 0;
 }

@@ -594,7 +594,13 @@ const EditorPage = () => {
                         onTabClose={handleTabClose}
                     />
 
-                    <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                    <div
+                    style={{
+                        flex: 1,
+                        minHeight: 0,
+                        position: 'relative',
+                    }}
+                    >
                         {socketReady && activeFileId && activeFile ? (
                             <Editor
                                 key={activeFileId}
