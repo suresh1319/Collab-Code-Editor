@@ -64,11 +64,11 @@ function runJavaScript(code) {
   } catch (err) {
     errorLog = { type: "error", text: err.toString() };
   } finally {
-    try {
-        methods.forEach(m => { console[m] = original[m]; });
-    } catch (_) {
-        // fail-safe restore (ignore silently)
-    }
+    setTimeout(() => {
+        methods.forEach(m => {
+            console[m] = original[m];
+        });
+    }, 0);
 }
   if (errorLog) logs.push(errorLog);
   if (logs.length === 0) logs.push({ type: "info", text: "(no output)" });

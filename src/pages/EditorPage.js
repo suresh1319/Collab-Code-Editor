@@ -438,13 +438,14 @@ const EditorPage = () => {
     const editor = editorsRef.current[activeFileId];
     const code =
       editor?.getValue?.() ?? fileContentsRef.current[activeFileId] ?? "";
-    setConsoleOpen(true);
+    
     const mode = getModeFromFilename(activeFile.name);
 
     if (mode?.name === "javascript" && activeFile.name.match(/\.(ts|tsx)$/)) {
       toast.error("TypeScript is not supported. Please use JavaScript.");
       return;
     }
+    setConsoleOpen(true);
     run(code, getModeFromFilename(activeFile.name), activeFile.name);
   }, [activeFileId, fileSystem, run]);
 
