@@ -1,0 +1,30 @@
+.dcm-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+}
+.dcm-box {
+  background: #1e2327; border: 1px solid #333;
+  border-radius: 10px; padding: 28px; width: 360px; max-width: 90vw;
+}
+.dcm-title {
+  color: #e0e0e0; font-size: 16px; font-weight: 600;
+  text-align: center; margin: 0 0 12px;
+}
+.dcm-body {
+  color: #aaa; font-size: 13.5px; text-align: center;
+  line-height: 1.6; margin: 0 0 22px;
+}
+.dcm-body strong { color: #e0e0e0; }
+.dcm-note { display: block; margin-top: 8px; color: #e5a820; font-size: 12px; }
+.dcm-actions { display: flex; gap: 10px; }
+.dcm-cancel {
+  flex: 1; padding: 8px 0; background: #2e3338;
+  color: #ccc; border: none; border-radius: 6px; cursor: pointer;
+}
+.dcm-confirm {
+  flex: 1; padding: 8px 0; background: #c0392b;
+  color: #fff; border: none; border-radius: 6px;
+  font-weight: 500; cursor: pointer;
+}
