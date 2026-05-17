@@ -85,19 +85,28 @@ export function useCodeRunner() {
         setConsoleLogs(prev => [...prev, { type: 'separator', text: label }]);
 
         const modeName = typeof cmMode === 'object' ? cmMode.name : (cmMode || '');
+        // FIX 3: Extract json flag — getModeFromFilename sets json:true for .json files
+        const isJsonMode = typeof cmMode === 'object' && cmMode.json === true;
 
         try {
-            if (modeName === 'javascript') {
+            // FIX 3: Guard against JSON files being executed as JavaScript
+            if (modeName === 'javascript' && !isJsonMode) {
                 // ── JavaScript: run in-browser ────────────────────────────
                 const logs = runJavaScript(code);
                 setConsoleLogs(prev => [...prev, ...logs]);
+
+            } else if (isJsonMode) {
+                // ── JSON: not executable, show a helpful message ──────────
+                setConsoleLogs(prev => [...prev, {
+                    type: 'warn',
+                    text: 'JSON files are not executable. Open a .js, .py, .java, or other supported file to run code.',
+                }]);
 
             } else if (modeName === 'htmlmixed') {
                 // ── HTML: render in a new browser tab ─────────────────────
                 const blob = new Blob([code], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
                 window.open(url, '_blank');
-                // Free the object URL after the tab has had time to load it
                 setTimeout(() => URL.revokeObjectURL(url), 5000);
                 setConsoleLogs(prev => [...prev, {
                     type: 'info',

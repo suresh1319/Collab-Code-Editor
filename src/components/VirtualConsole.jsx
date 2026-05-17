@@ -27,6 +27,9 @@ const VirtualConsole = ({
   const bottomRef = useRef(null);
   const prevLengthRef = useRef(logs.length);
 
+  // FIX 2: Store cleanup fn in a ref so it survives unmount mid-drag
+  const dragCleanupRef = useRef(null);
+
   useEffect(() => {
     prevLengthRef.current = logs.length;
   }, [logs.length]);
@@ -38,7 +41,17 @@ const VirtualConsole = ({
     }
   }, [logs, open]);
 
-  // Drag-to-resize
+  // FIX 2: Clean up any orphaned drag listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (dragCleanupRef.current) {
+        dragCleanupRef.current();
+        dragCleanupRef.current = null;
+      }
+    };
+  }, []);
+
+  // FIX 2: Drag-to-resize with guaranteed cleanup on unmount
   const startDrag = (e) => {
     e.preventDefault();
     const startY = e.clientY;
@@ -46,11 +59,17 @@ const VirtualConsole = ({
 
     const onMove = (moveEvent) => {
       const delta = startY - moveEvent.clientY;
-      // ✅ min is 60px so user can shrink it small
       setHeight(Math.max(60, Math.min(600, startHeight + delta)));
     };
 
     const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      dragCleanupRef.current = null;
+    };
+
+    // Store cleanup so unmount can call it if drag is still active
+    dragCleanupRef.current = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
@@ -66,7 +85,6 @@ const VirtualConsole = ({
   if (!open) return null;
 
   return (
-    // ✅ FIXED: removed minHeight from inline style — was preventing shrinking
     <div
       className="virtual-console open"
       style={{ height: `${height}px` }}
@@ -109,6 +127,18 @@ const VirtualConsole = ({
           >
             ✕ Clear
           </button>
+
+          {/* FIX 1: Collapse button — calls setOpen(false) so EditorPage state stays in sync */}
+          <button
+            className="console-btn console-btn--chevron"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen?.(false);
+            }}
+            title="Hide Console"
+          >
+            ▾
+          </button>
         </div>
       </div>
 
@@ -136,7 +166,6 @@ const VirtualConsole = ({
                 <span className="console-row-prefix">
                   {LOG_PREFIX[log.type] ?? ">"}
                 </span>
-                {/* ✅ FIXED: pre tag naturally enables horizontal scroll */}
                 <pre className="console-row-text">{log.text}</pre>
               </div>
             );
