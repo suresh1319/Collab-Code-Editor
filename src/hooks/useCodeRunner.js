@@ -41,7 +41,8 @@ async function runWithJudge0(code, languageId) {
 function runJavaScript(code) {
   return new Promise((resolve) => {
     const logs = [];
-
+    // Escape </script> to prevent premature tag closure in blob HTML
+    code = code.replace(/<\/script>/gi, '<\\/script>');
     // Unique channel ID to avoid cross-contamination if multiple runs overlap
     const channelId = `__cce_logs_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
