@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import EditorPage from './pages/EditorPage';
 import NotFound from './pages/NotFound';
 import {Toaster} from "react-hot-toast";
+import LandingPage from './pages/LandingPage';
 
 function App() {
   return (
@@ -28,7 +29,8 @@ function App() {
     </div>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
-          <Route path='/' element={<Home />}></Route>
+          <Route path='/' element={<LandingPage />}></Route>
+<Route path='/join' element={<Home />}></Route>
           <Route path='/editor/:roomId' element={<EditorPage />}></Route>
           <Route path='*' element={<NotFound/>}></Route>
         </Routes>
