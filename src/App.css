@@ -1605,6 +1605,7 @@ body[data-theme='light'] .console-separator::after {
 .CodeMirror {
   min-height: 0 !important;
 }
+
 /* ===== Landing Page ===== */
 .landing-page {
   min-height: 100vh;
