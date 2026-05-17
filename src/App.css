@@ -279,7 +279,7 @@
 .navbar-icon-btn {
   background: transparent;
   border: none;
-  color: #E6EAF1;
+  color: var(--text-color);
   opacity: 0.8;
   cursor: pointer;
   display: flex;
@@ -292,7 +292,7 @@
 
 .navbar-icon-btn:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(74, 237, 136, 0.12);
 }
 
 .navbar-users-btn {
@@ -368,7 +368,8 @@
   position: relative;
   background: transparent;
   border: none;
-  color: #E6EAF1;
+  color: var(--text-color);
+  opacity: 0.75;
   font-size: 1.2rem;
   width: 44px;
   height: 44px;
@@ -386,7 +387,13 @@
 }
 
 .activity-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(74, 237, 136, 0.12);
+  color: var(--text-color);
+  opacity: 1;
+  transform: translateY(-1px);
+}
+.activity-btn:hover svg {
+  transform: scale(1.05);
 }
 
 .activity-btn--active {
@@ -492,7 +499,8 @@
 .panel-header-btn:hover {
   opacity: 1;
   border-color: #4aed88;
-  background: rgba(74, 237, 136, 0.08);
+  background: rgba(74,237,136,0.12);
+  transform: translateY(-1px);
 }
 
 .panel-admin-tag {
@@ -813,12 +821,10 @@
   padding: 4px;
   border-radius: 4px;
 }
-
 .modal-close:hover {
+  background: rgba(74,237,136,0.12);
   opacity: 1;
-  background: rgba(255, 255, 255, 0.06);
 }
-
 .modal-desc {
   font-size: 0.83rem;
   color: var(--text-color);
@@ -1159,15 +1165,16 @@
   border-right: 1px solid var(--border-color);
   color: var(--text-color);
   opacity: 0.6;
-  transition: opacity 0.15s, background 0.15s;
+  transition: all 0.2s ease;
+  background: 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
   position: relative;
 }
 
 .file-tab:hover {
+  background: rgba(74, 237, 136, 0.08);
   opacity: 0.85;
-  background: rgba(255, 255, 255, 0.04);
 }
 
 .file-tab--active {

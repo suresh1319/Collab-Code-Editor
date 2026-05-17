@@ -2,7 +2,7 @@
   --bg-color: #1c1e29;
   --aside-bg: #282a36;
   --text-color: #f8f8f2;
-  --border-color: #424242;
+ --border-color: #d1d5db;
   --btn-bg: #4aed88;
   --btn-hover: #2b824c;
   --input-bg: #3a3c4d;
@@ -12,7 +12,7 @@
 }
 
 [data-theme="light"] {
-  --bg-color: #f0f2f5;
+  --bg-color: #f5f7fb;
   --aside-bg: #ffffff;
   --text-color: #1c1e29;
   --border-color: #e0e0e0;
