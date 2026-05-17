@@ -66,8 +66,6 @@ const EditorPage = () => {
     const [showInvite, setShowInvite] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer');
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
-
-    // ✅ FIX: start console CLOSED — user opens it manually or it auto-opens on Run
     const [consoleOpen, setConsoleOpen] = useState(false);
 
     useEffect(() => {
@@ -427,7 +425,7 @@ const EditorPage = () => {
                         </button>
                     )}
 
-                    {/* ✅ FIX: button label correctly reflects current state */}
+                    {/* button label correctly reflects current state */}
                     <button
                         className="console-toggle-btn"
                         onClick={() => setConsoleOpen(prev => !prev)}
@@ -520,7 +518,7 @@ const EditorPage = () => {
                     </div>
                 </div>
 
-                {/* ── Side Panel ── */}
+                {/* Side Panel */}
                 {['explorer', 'users'].includes(activePanel) && (
                     <div className="side-panel">
                         {activePanel === 'explorer' && (
@@ -632,7 +630,7 @@ const EditorPage = () => {
                         )}
                     </div>
 
-                    {/* ✅ VirtualConsole — only mounts when open=true, unmounts completely when false */}
+                    {/* VirtualConsole — only mounts when open=true, unmounts completely when false */}
                     <VirtualConsole
                         logs={consoleLogs}
                         isRunning={isRunning}
