@@ -1166,7 +1166,6 @@
   color: var(--text-color);
   opacity: 0.6;
   transition: all 0.2s ease;
-  background: 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
   position: relative;
