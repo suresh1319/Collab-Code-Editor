@@ -13,6 +13,7 @@ import {
     Monitor,
     ChevronRight,
     MessageSquare,
+    Terminal,
 } from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
@@ -71,8 +72,6 @@ const EditorPage = () => {
     const [consoleOpen, setConsoleOpen] = useState(false);
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [showLeaveModal, setShowLeaveModal] = useState(false);
-    const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
-    const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
     const [sideWidth, setSideWidth] = useState(() => {
         const saved = localStorage.getItem('sideWidth');
         return saved ? Number(saved) : 260;
@@ -233,9 +232,6 @@ const EditorPage = () => {
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
             });
 
-            // Show a toast when the server rejects an action due to insufficient permissions.
-            // Uses a dedicated PERMISSION_DENIED event to avoid clashing with Socket.IO's
-            // reserved 'error' event which may fire with different payload shapes.
             socketRef.current.on(ACTIONS.PERMISSION_DENIED, (payload) => {
                 const message =
                     typeof payload === 'string'
@@ -246,7 +242,6 @@ const EditorPage = () => {
                 toast.error(message);
             });
 
-            // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
                     Object.entries(fileContents).forEach(([k, v]) => {
@@ -261,9 +256,6 @@ const EditorPage = () => {
                 }
                 setFileSystem(fs);
 
-                // Compute next open files and active file outside of updaters
-                // to avoid nesting setState calls inside functional updaters
-                // (React Strict Mode double-invokes updaters to detect impurities).
                 setOpenFiles(prev => {
                     const next = prev.filter(id => fs[id]);
                     if (next.length === 0) {
@@ -276,11 +268,8 @@ const EditorPage = () => {
                     return next;
                 });
 
-                // Update activeFileId separately — not nested inside setOpenFiles
                 setActiveFileId(cur => {
                     if (cur && !fs[cur]) {
-                        // Active file was deleted — pick the first surviving open file
-                        // (openFiles state may not be updated yet, so scan fs directly)
                         const root = fs['root'];
                         if (root && root.children) {
                             const firstFile = root.children.find(id => fs[id]?.type === 'file');
@@ -288,7 +277,6 @@ const EditorPage = () => {
                         }
                         return null;
                     }
-                    // Auto-select first file if nothing is active
                     if (!cur) {
                         const root = fs['root'];
                         if (root && root.children) {
@@ -316,9 +304,6 @@ const EditorPage = () => {
         };
     }, []);
 
-    // ---- File system event handlers ----
-    // Each handler checks canWrite before emitting to avoid sending events
-    // that the server will reject, preventing false success states.
     const handleCreateNode = useCallback((node) => {
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
@@ -328,8 +313,6 @@ const EditorPage = () => {
         setOpenFiles(prev => prev.filter(id => id !== nodeId));
         setActiveFileId(prev => prev === nodeId ? null : prev);
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
-        // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
-        // to confirm the deletion, preventing stale UI if the server rejects.
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
     }, [roomId, canWrite]);
 
@@ -405,7 +388,6 @@ const EditorPage = () => {
     }
 
     async function handleSaveLeave() {
-        // Download first, then navigate away
         const contents = { ...fileContentsRef.current };
         for (const [fileId, editor] of Object.entries(editorsRef.current)) {
             if (editor && editor.getValue) contents[fileId] = editor.getValue();
@@ -442,13 +424,9 @@ const EditorPage = () => {
         }
         if (!fileSystem || !fileSystem['root']) {
             toast.error('File system not ready. Please try again.');
-            // Revert active icon
-            setTimeout(() => {
-                setActivePanel(lastPersistentPanel);
-            }, 1000);
+            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
             return;
         }
-
         try {
             await downloadProject(fileSystem, contents);
             toast.success('Project downloaded!');
@@ -456,10 +434,7 @@ const EditorPage = () => {
             console.error('Download failed:', err);
             toast.error('Download failed. Please try again.');
         } finally {
-            // Revert active icon
-            setTimeout(() => {
-                setActivePanel(lastPersistentPanel);
-            }, 1000);
+            setTimeout(() => setActivePanel(lastPersistentPanel), 1000);
         }
     }
 
@@ -550,7 +525,7 @@ const EditorPage = () => {
 
     return (
         <div className="app-container">
-            {/* ── Top Navbar (Reverted to Edge-to-Edge Layout) ── */}
+            {/* ── Top Navbar ── */}
             <div className="top-navbar">
                 <div className="top-navbar-left">
                     <Monitor size={16} className="navbar-room-icon" />
@@ -567,6 +542,7 @@ const EditorPage = () => {
                         {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
                     </button>
 
+                    {/* Run button */}
                     {activeFileId && (
                         <button
                             className={`navbar-run-btn${isRunning ? ' running' : ''}`}
@@ -590,13 +566,13 @@ const EditorPage = () => {
                         </button>
                     )}
 
-                    {/* button label correctly reflects current state */}
+                    {/* Console toggle — Terminal icon, highlights when open */}
                     <button
-                        className="console-toggle-btn"
+                        className={`navbar-icon-btn${consoleOpen ? ' navbar-icon-btn--active' : ''}`}
                         onClick={() => setConsoleOpen(prev => !prev)}
                         title={consoleOpen ? 'Hide Console' : 'Show Console'}
                     >
-                        {consoleOpen ? 'Hide Console' : 'Show Console'}
+                        <Terminal size={15} />
                     </button>
 
                     <button className="navbar-leave-btn" onClick={leaveRoom}>
@@ -681,12 +657,12 @@ const EditorPage = () => {
                         >
                             <KeyRound size={22} strokeWidth={1.5} />
                         </button>
-                        <button 
-                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`} 
+                        <button
+                            className={`activity-btn ${activePanel === 'save' ? 'activity-btn--active' : ''}`}
                             onClick={() => {
                                 setActivePanel('save');
                                 setShowConfirmDownload(true);
-                            }} 
+                            }}
                             title="Save Project"
                         >
                             <Save size={22} strokeWidth={1.5} />
@@ -694,76 +670,76 @@ const EditorPage = () => {
                     </div>
                 </div>
 
-                {/* Side Panel */}
+                {/* ── Side Panel ── */}
                 {['explorer', 'users'].includes(activePanel) && (
                     <>
                         <div className="side-panel" style={{ width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}>
                             {activePanel === 'explorer' && (
                                 <>
-                                <div className="panel-header">
-                                    <span className="panel-title">
-                                        <FolderOpen size={13} className="panel-title-icon" />
-                                        EXPLORER
-                                    </span>
-                                    {canWrite && (
-                                        <div className="panel-header-actions">
-                                            <button className="panel-header-btn" onClick={() => uploadFileInputRef.current?.click()} title="Upload file(s)">
-                                                <Upload size={11} /> File
-                                            </button>
-                                            <button className="panel-header-btn" onClick={() => uploadFolderInputRef.current?.click()} title="Upload folder">
-                                                <FolderUp size={11} /> Folder
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="panel-body">
-                                    <FileExplorer
-                                        fileSystem={fileSystem}
-                                        activeFileId={activeFileId}
-                                        onFileClick={handleFileClick}
-                                        onCreateNode={handleCreateNode}
-                                        onDeleteNode={handleDeleteNode}
-                                        onRenameNode={handleRenameNode}
-                                        canWrite={canWrite}
-                                        hideTitle
-                                    />
-                                </div>
-                            </>
-                        )}
-                        {activePanel === 'users' && (
-                            <>
-                                <div className="panel-header">
-                                    <span className="panel-title">
-                                        <Users size={13} className="panel-title-icon" />
-                                        CONNECTED {isAdmin ? <span className="panel-admin-tag">Admin</span> : ''}
-                                    </span>
-                                </div>
-                                <div className="panel-body">
-                                    <div className="clientsList">
-                                        {clients.map((client) => (
-                                            <Client
-                                                key={client.socketId}
-                                                userName={client.userName}
-                                                isAdmin={client.isAdmin}
-                                                canWrite={client.canWrite}
-                                                isMe={client.socketId === socketRef.current?.id}
-                                                iAmAdmin={isAdmin}
-                                                onTogglePermission={() => togglePermission(client.socketId, client.canWrite)}
-                                                onRequestAccess={requestWriteAccess}
-                                            />
-                                        ))}
+                                    <div className="panel-header">
+                                        <span className="panel-title">
+                                            <FolderOpen size={13} className="panel-title-icon" />
+                                            EXPLORER
+                                        </span>
+                                        {canWrite && (
+                                            <div className="panel-header-actions">
+                                                <button className="panel-header-btn" onClick={() => uploadFileInputRef.current?.click()} title="Upload file(s)">
+                                                    <Upload size={11} /> File
+                                                </button>
+                                                <button className="panel-header-btn" onClick={() => uploadFolderInputRef.current?.click()} title="Upload folder">
+                                                    <FolderUp size={11} /> Folder
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                    <div className="resizer" onMouseDown={startResizing} />
-                </>
+                                    <div className="panel-body">
+                                        <FileExplorer
+                                            fileSystem={fileSystem}
+                                            activeFileId={activeFileId}
+                                            onFileClick={handleFileClick}
+                                            onCreateNode={handleCreateNode}
+                                            onDeleteNode={handleDeleteNode}
+                                            onRenameNode={handleRenameNode}
+                                            canWrite={canWrite}
+                                            hideTitle
+                                        />
+                                    </div>
+                                </>
+                            )}
+                            {activePanel === 'users' && (
+                                <>
+                                    <div className="panel-header">
+                                        <span className="panel-title">
+                                            <Users size={13} className="panel-title-icon" />
+                                            CONNECTED {isAdmin ? <span className="panel-admin-tag">Admin</span> : ''}
+                                        </span>
+                                    </div>
+                                    <div className="panel-body">
+                                        <div className="clientsList">
+                                            {clients.map((client) => (
+                                                <Client
+                                                    key={client.socketId}
+                                                    userName={client.userName}
+                                                    isAdmin={client.isAdmin}
+                                                    canWrite={client.canWrite}
+                                                    isMe={client.socketId === socketRef.current?.id}
+                                                    iAmAdmin={isAdmin}
+                                                    onTogglePermission={() => togglePermission(client.socketId, client.canWrite)}
+                                                    onRequestAccess={requestWriteAccess}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <div className="resizer" onMouseDown={startResizing} />
+                    </>
                 )}
 
                 {/* ── Main Editor Area ── */}
-                <div className="editorWrap">
-
+                {/* FIX: flexDirection column so VirtualConsole stacks below editor */}
+                <div className="editorWrap" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {/* File tabs */}
                     <FileTabs
                         openFiles={openFiles}
@@ -773,27 +749,31 @@ const EditorPage = () => {
                         onTabClose={handleTabClose}
                     />
 
-                    {/* Editor */}
-                    {socketReady && activeFileId && activeFile ? (
-                        <Editor
-                            key={activeFileId}
-                            socketRef={socketRef}
-                            roomId={roomId}
-                            fileId={activeFileId}
-                            fileName={activeFile.name}
-                            onCodeChange={handleCodeChange}
-                            onEditorReady={handleEditorReady}
-                            userName={location.state?.userName}
-                            canWrite={canWrite}
-                            editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
-                            initialContent={initialContentsRef.current[activeFileId] || ''}
-                            fileContentsSnapshot={fileContentsSnapshot}
-                        />
-                    ) : (
-                        <div className="editor-empty">
-                            <div className="editor-empty-inner">
-                                <div className="editor-empty-logo">
-                                    <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                    {/* Editor — flex:1 fills space above console */}
+                    <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                        {socketReady && activeFileId && activeFile ? (
+                            <Editor
+                                key={activeFileId}
+                                socketRef={socketRef}
+                                roomId={roomId}
+                                fileId={activeFileId}
+                                fileName={activeFile.name}
+                                onCodeChange={handleCodeChange}
+                                onEditorReady={handleEditorReady}
+                                userName={location.state?.userName}
+                                canWrite={canWrite}
+                                editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                                initialContent={initialContentsRef.current[activeFileId] || ''}
+                                fileContentsSnapshot={fileContentsSnapshot}
+                            />
+                        ) : (
+                            <div className="editor-empty">
+                                <div className="editor-empty-inner">
+                                    <div className="editor-empty-logo">
+                                        <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                                    </div>
+                                    <p>Select a file from the explorer to start editing</p>
+                                    {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                                 </div>
                             </div>
                         )}
@@ -803,7 +783,7 @@ const EditorPage = () => {
                         )}
                     </div>
 
-                    {/* VirtualConsole — only mounts when open=true, unmounts completely when false */}
+                    {/* VirtualConsole — controlled entirely by consoleOpen state */}
                     <VirtualConsole
                         logs={consoleLogs}
                         isRunning={isRunning}
@@ -841,23 +821,8 @@ const EditorPage = () => {
                 />
             )}
 
-            {/* Hidden file inputs for upload */}
-            <input
-                ref={uploadFileInputRef}
-                type="file"
-                multiple
-                style={{ display: 'none' }}
-                onChange={handleUploadFiles}
-            />
-            <input
-                ref={uploadFolderInputRef}
-                type="file"
-                multiple
-                webkitdirectory=""
-                directory=""
-                style={{ display: 'none' }}
-                onChange={handleUploadFiles}
-            />
+            <input ref={uploadFileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleUploadFiles} />
+            <input ref={uploadFolderInputRef} type="file" multiple webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleUploadFiles} />
         </div>
     );
 };
