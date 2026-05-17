@@ -33,46 +33,101 @@ async function runWithJudge0(code, languageId) {
   };
 }
 
+// FIX: Replaced new Function(code)() with a sandboxed iframe + postMessage approach.
+// new Function() requires 'unsafe-eval' which is blocked by strict CSP (script-src 'self').
+// A sandboxed iframe with sandbox="allow-scripts" (without allow-same-origin) runs its own
+// independent browsing context that is NOT bound by the parent page's CSP, so JS executes
+// freely. postMessage tunnels console output back to the parent safely.
 function runJavaScript(code) {
-  const logs = [];
-  const methods = ["log", "warn", "error", "info"];
-  const original = {};
-  methods.forEach((m) => {
-    original[m] = console[m];
-    console[m] = (...args) => {
-      logs.push({
-        type: m,
-        text: args
-          .map((a) => {
-            try {
-              return typeof a === "object"
-                ? JSON.stringify(a, null, 2)
-                : String(a);
-            } catch {
-              return String(a);
-            }
-          })
-          .join(" "),
-      });
-      original[m](...args);
+  return new Promise((resolve) => {
+    const logs = [];
+
+    // Unique channel ID to avoid cross-contamination if multiple runs overlap
+    const channelId = `__cce_logs_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    const wrappedCode = `
+      (function() {
+        const _send = (type, args) => window.parent.postMessage(
+          {
+            __cce: true,
+            channel: ${JSON.stringify(channelId)},
+            type,
+            text: args.map(a => {
+              try {
+                return typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a);
+              } catch {
+                return String(a);
+              }
+            }).join(' ')
+          },
+          '*'
+        );
+
+        const console = {
+          log:   (...a) => _send('log', a),
+          warn:  (...a) => _send('warn', a),
+          error: (...a) => _send('error', a),
+          info:  (...a) => _send('info', a),
+        };
+
+        try {
+          ${code}
+        } catch (err) {
+          _send('error', [err.toString()]);
+        } finally {
+          window.parent.postMessage(
+            { __cce: true, channel: ${JSON.stringify(channelId)}, type: '__done' },
+            '*'
+          );
+        }
+      })();
+    `;
+
+    // Build a minimal HTML page that just runs the user's code
+    const html = `<!DOCTYPE html><html><body><script>${wrappedCode}<\/script></body></html>`;
+    const blob = new Blob([html], { type: "text/html" });
+    const blobUrl = URL.createObjectURL(blob);
+
+    // sandbox="allow-scripts" WITHOUT allow-same-origin:
+    //   - Allows script execution inside the iframe
+    //   - Denies same-origin access, so the iframe cannot touch parent DOM/storage
+    //   - Crucially: the iframe's CSP is independent of the parent's, so 'unsafe-eval'
+    //     restrictions on the parent do NOT apply inside this sandboxed context
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.sandbox = "allow-scripts";
+    iframe.src = blobUrl;
+
+    // Safety: kill execution if it hangs for more than 10 seconds
+    const timeout = setTimeout(() => {
+      cleanup();
+      logs.push({ type: "warn", text: "Execution timed out after 10 seconds." });
+      resolve(logs);
+    }, 10000);
+
+    const onMessage = (event) => {
+      // Ignore messages from unrelated sources or channels
+      if (!event.data?.__cce || event.data.channel !== channelId) return;
+
+      if (event.data.type === "__done") {
+        cleanup();
+        if (logs.length === 0) logs.push({ type: "info", text: "(no output)" });
+        resolve(logs);
+      } else {
+        logs.push({ type: event.data.type, text: event.data.text });
+      }
     };
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      window.removeEventListener("message", onMessage);
+      if (iframe.parentNode) document.body.removeChild(iframe);
+      URL.revokeObjectURL(blobUrl);
+    };
+
+    window.addEventListener("message", onMessage);
+    document.body.appendChild(iframe);
   });
-  let errorLog = null;
-  try {
-    // eslint-disable-next-line no-new-func
-    new Function(code)();
-  } catch (err) {
-    errorLog = { type: "error", text: err.toString() };
-  } finally {
-    setTimeout(() => {
-        methods.forEach(m => {
-            console[m] = original[m];
-        });
-    }, 0);
-}
-  if (errorLog) logs.push(errorLog);
-  if (logs.length === 0) logs.push({ type: "info", text: "(no output)" });
-  return logs;
 }
 
 export function useCodeRunner() {
@@ -99,17 +154,15 @@ export function useCodeRunner() {
     setConsoleLogs((prev) => [...prev, { type: "separator", text: label }]);
 
     const modeName = typeof cmMode === "object" ? cmMode.name : cmMode || "";
-    // FIX 3: Extract json flag — getModeFromFilename sets json:true for .json files
     const isJsonMode = typeof cmMode === "object" && cmMode.json === true;
 
     try {
-      // FIX 3: Guard against JSON files being executed as JavaScript
       if (modeName === "javascript" && !isJsonMode) {
-        // ── JavaScript: run in-browser ────────────────────────────
-        const logs = runJavaScript(code);
+        // ── JavaScript: run in sandboxed iframe (CSP-safe) ───────
+        const logs = await runJavaScript(code); // FIX: now async, must be awaited
         setConsoleLogs((prev) => [...prev, ...logs]);
       } else if (isJsonMode) {
-        // ── JSON: not executable, show a helpful message ──────────
+        // ── JSON: not executable ──────────────────────────────────
         setConsoleLogs((prev) => [
           ...prev,
           {
