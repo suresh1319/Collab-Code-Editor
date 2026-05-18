@@ -8,6 +8,12 @@ const ACTIONS = require('./src/Actions');
 const WebSocket = require('ws');
 const setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
 const { randomUUID: uuid } = require('crypto');
+const {
+  ROOM_CLEANUP_GRACE_MS,
+  createRoomState,
+  cancelPendingRoomCleanup,
+  scheduleRoomCleanup,
+} = require('./roomStateLifecycle');
 
 require('dotenv').config();
 
@@ -55,7 +61,7 @@ const io = new Server(server, {
 
 const userSocketMap = {};
 const socketRoomMap = {};
-// roomState: { admin, permissions, fileSystem, fileContents }
+// roomState: { admin, permissions, fileSystem, fileContents, cleanupTimer }
 const roomState = {};
 
 // ---- Permission helper ----
@@ -97,12 +103,9 @@ io.on('connection', (socket) => {
 
     // Initialize room state if it doesn't exist
     if (!roomState[roomId]) {
-      roomState[roomId] = {
-        admin: socket.id,
-        permissions: {},
-        fileSystem: createDefaultFileSystem(),
-        fileContents: {}, // stores uploaded file contents keyed by fileId
-      };
+      roomState[roomId] = createRoomState(socket.id, createDefaultFileSystem);
+    } else {
+      cancelPendingRoomCleanup(roomState[roomId]);
     }
 
     // Default permission
@@ -337,7 +340,9 @@ io.on('connection', (socket) => {
           roomState[roomId].admin = clientsInRoom[0];
           roomState[roomId].permissions[clientsInRoom[0]] = true;
         } else {
-          delete roomState[roomId];
+          // Preserve in-memory room state briefly so a browser refresh can reconnect
+          // without losing file tree or uploaded contents.
+          scheduleRoomCleanup(roomState, roomId);
         }
       }
 
@@ -387,3 +392,4 @@ wss.on('connection', (conn, req) => {
   setupWSConnection(conn, req);
 });
 console.log('Yjs WebSocket server is attached to the HTTP server');
+console.log(`Room cleanup grace window: ${ROOM_CLEANUP_GRACE_MS}ms`);
