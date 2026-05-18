@@ -13,6 +13,7 @@ import {
     Monitor,
     ChevronRight,
     MessageSquare,
+    Terminal,
 } from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
@@ -31,6 +32,28 @@ import {
     Navigate,
     useParams,
 } from 'react-router-dom';
+import VirtualConsole from '../components/VirtualConsole';
+import { useCodeRunner } from '../hooks/useCodeRunner';
+
+function getModeFromFilename(name = "") {
+    const ext = name.split(".").pop().toLowerCase();
+    const modeMap = {
+        js: { name: "javascript", json: false },
+        jsx: { name: "javascript", json: false },
+        ts: { name: "javascript", json: false },
+        tsx: { name: "javascript", json: false },
+        json: { name: "javascript", json: true },
+        html: "htmlmixed", htm: "htmlmixed",
+        xml: "xml", svg: "xml",
+        css: "css", scss: "css",
+        py: "python", md: "markdown", markdown: "markdown",
+        sh: "shell", bash: "shell",
+        sql: "sql", php: "php",
+        c: "text/x-csrc", cpp: "text/x-c++src",
+        java: "text/x-java", cs: "text/x-csharp",
+    };
+    return modeMap[ext] || "text/plain";
+}
 
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
@@ -39,6 +62,7 @@ const EditorPage = () => {
     const [showLeaveModal, setShowLeaveModal] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
+    const [consoleOpen, setConsoleOpen] = useState(false);
     const [sideWidth, setSideWidth] = useState(() => {
         const saved = localStorage.getItem('sideWidth');
         return saved ? Number(saved) : 260;
@@ -48,6 +72,8 @@ const EditorPage = () => {
     const startWidthRef = useRef(260);
     const MIN_SIDE_WIDTH = 180;
     const MAX_SIDE_WIDTH = 520;
+
+    const { run, isRunning, consoleLogs, clearLogs } = useCodeRunner();
 
     useEffect(() => {
         if (theme === 'light') {
@@ -329,6 +355,27 @@ const EditorPage = () => {
         editorsRef.current[fileId] = editorInstance;
     }, []);
 
+    const handleRun = useCallback(() => {
+        if (!activeFileId) return;
+        const activeFile = fileSystem[activeFileId];
+        if (!activeFile) return;
+        const editor = editorsRef.current[activeFileId];
+        const code = editor?.getValue?.() ?? fileContentsRef.current[activeFileId] ?? "";
+        setConsoleOpen(true);
+        run(code, getModeFromFilename(activeFile.name), activeFile.name);
+    }, [activeFileId, fileSystem, run]);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!isRunning && activeFileId) handleRun();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [handleRun, isRunning, activeFileId]);
+
     async function copyRoomId() {
         try {
             await navigator.clipboard.writeText(roomId);
@@ -527,6 +574,29 @@ const EditorPage = () => {
                     <button className="navbar-icon-btn" onClick={toggleTheme} title="Toggle Theme">
                         {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
                     </button>
+                    {/* Run button */}
+                    {activeFileId && (
+                        <button
+                            className={`navbar-run-btn${isRunning ? ' running' : ''}`}
+                            onClick={handleRun}
+                            disabled={isRunning}
+                            title={isRunning ? 'Running…' : 'Run code (Ctrl+Enter)'}
+                        >
+                            {isRunning ? (
+                                <><span className="run-btn-spinner" /><span>Running…</span></>
+                            ) : (
+                                <><svg className="run-btn-play" viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M3.5 2.5a.5.5 0 0 1 .757-.429l9 5.5a.5.5 0 0 1 0 .858l-9 5.5A.5.5 0 0 1 3.5 13.5v-11z" /></svg><span>Run</span></>
+                            )}
+                        </button>
+                    )}
+                    {/* Console toggle */}
+                    <button
+                        className={`navbar-icon-btn${consoleOpen ? ' navbar-icon-btn--active' : ''}`}
+                        onClick={() => setConsoleOpen(prev => !prev)}
+                        title={consoleOpen ? 'Hide Console' : 'Show Console'}
+                    >
+                        <Terminal size={15} />
+                    </button>
                     <button className="navbar-leave-btn" onClick={leaveRoom}>
                         <LogOut size={14} strokeWidth={2.5} />
                         <span>Leave Room</span>
@@ -703,7 +773,7 @@ const EditorPage = () => {
                 )}
 
                 {/* ── Main Editor Area ── */}
-                <div className="editorWrap">
+                <div className="editorWrap" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
                     {/* File tabs */}
                     <FileTabs
@@ -714,37 +784,48 @@ const EditorPage = () => {
                         onTabClose={handleTabClose}
                     />
 
-                    {/* Editor */}
-                    {socketReady && activeFileId && activeFile ? (
-                        <Editor
-                            key={activeFileId}
-                            socketRef={socketRef}
-                            roomId={roomId}
-                            fileId={activeFileId}
-                            fileName={activeFile.name}
-                            onCodeChange={handleCodeChange}
-                            onEditorReady={handleEditorReady}
-                            userName={location.state?.userName}
-                            canWrite={canWrite}
-                            editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
-                            initialContent={initialContentsRef.current[activeFileId] || ''}
-                            fileContentsSnapshot={fileContentsSnapshot}
-                        />
-                    ) : (
-                        <div className="editor-empty">
-                            <div className="editor-empty-inner">
-                                <div className="editor-empty-logo">
-                                    <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                    {/* Editor — flex:1 fills space above console */}
+                    <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                        {socketReady && activeFileId && activeFile ? (
+                            <Editor
+                                key={activeFileId}
+                                socketRef={socketRef}
+                                roomId={roomId}
+                                fileId={activeFileId}
+                                fileName={activeFile.name}
+                                onCodeChange={handleCodeChange}
+                                onEditorReady={handleEditorReady}
+                                userName={location.state?.userName}
+                                canWrite={canWrite}
+                                editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                                initialContent={initialContentsRef.current[activeFileId] || ''}
+                                fileContentsSnapshot={fileContentsSnapshot}
+                            />
+                        ) : (
+                            <div className="editor-empty">
+                                <div className="editor-empty-inner">
+                                    <div className="editor-empty-logo">
+                                        <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+                                    </div>
+                                    <p>Select a file from the explorer to start editing</p>
+                                    {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                                 </div>
-                                <p>Select a file from the explorer to start editing</p>
-                                {canWrite && <p className="editor-empty-hint">Use + buttons in the explorer to create files &amp; folders</p>}
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {!canWrite && activeFileId && (
-                        <div className="readonly-badge">Read-Only Mode</div>
-                    )}
+                        {!canWrite && activeFileId && (
+                            <div className="readonly-badge">Read-Only Mode</div>
+                        )}
+                    </div>
+
+                    {/* VirtualConsole — controlled entirely by consoleOpen state */}
+                    <VirtualConsole
+                        logs={consoleLogs}
+                        isRunning={isRunning}
+                        onClear={clearLogs}
+                        open={consoleOpen}
+                        setOpen={setConsoleOpen}
+                    />
                 </div>
             </div>
 
