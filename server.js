@@ -30,6 +30,8 @@ app.use(
           "https://your-backend.railway.app",
           "https://ce.judge0.com"
         ],
+        frameSrc: ["'self'", "blob:"],
+        childSrc: ["'self'", "blob:"],
       },
     },
   })

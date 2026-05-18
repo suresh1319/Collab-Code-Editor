@@ -11,7 +11,17 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'https://your-app.vercel.app';
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        frameSrc: ["'self'", "blob:"],
+        childSrc: ["'self'", "blob:"],
+      },
+    },
+  })
+);
 app.use(cors({
   origin: CLIENT_ORIGIN,
   methods: ['GET', 'POST'],
