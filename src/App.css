@@ -1658,7 +1658,7 @@ body[data-theme='light'] .console-separator::after {
 }
 
 .landing-primary-btn {
-  background: linear-gradient(135deg, #4aed88, #229ED9);
+  background: linear-gradient(to right, #22c55e, #06b6d4);
   color: white;
 }
 
@@ -1764,6 +1764,10 @@ body[data-theme='light'] .console-separator::after {
   border-radius: 18px;
   padding: 28px;
   transition: all 0.25s ease;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .feature-card:hover {
@@ -1808,6 +1812,10 @@ body[data-theme='light'] .console-separator::after {
   padding: 28px;
   text-align: center;
   transition: all 0.25s ease;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .step-card:hover {
