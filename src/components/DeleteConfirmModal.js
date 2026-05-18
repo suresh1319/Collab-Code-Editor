@@ -8,7 +8,7 @@ export default function DeleteConfirmModal({ target, onCancel, onConfirm }) {
     confirmRef.current?.focus();
     const handler = (e) => {
       if (e.key === "Escape") onCancel();
-      if (e.key === "Enter" && document.activeElement !== confirmRef.current) onConfirm();
+      if (e.key === "Enter" && !confirmRef.current?.contains(document.activeElement)) onConfirm();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
