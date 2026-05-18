@@ -310,9 +310,6 @@ io.on('connection', (socket) => {
           roomState[roomId].admin = clientsInRoom[0];
           roomState[roomId].permissions[clientsInRoom[0]] = true;
         } else {
-          // Instead of immediate deletion, we start a timer.
-          // This prevents state loss when the last user refreshes the page,
-          // as the disconnect event fires immediately, but the new join happens shortly after.
           roomCleanupTimers[roomId] = setTimeout(() => {
             delete roomState[roomId];
             delete roomCleanupTimers[roomId];
