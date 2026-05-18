@@ -58,6 +58,12 @@ const socketRoomMap = {};
 // roomState: { admin, permissions, fileSystem, fileContents }
 const roomState = {};
 
+// Delayed cleanup to prevent data loss on page refresh
+// When a user refreshes, their socket disconnects before the new one connects.
+// A grace period ensures the room state is preserved during this transition.
+const roomCleanupTimers = {};
+const ROOM_CLEANUP_DELAY_MS = 60000;
+
 // ---- Permission helper ----
 // Returns true if socket is the room admin OR has been granted write access.
 function canWriteToRoom(socket, roomId) {
@@ -91,6 +97,12 @@ function getAllConnectedClients(roomId) {
 
 io.on('connection', (socket) => {
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
+    // If there was a pending cleanup for this room (e.g. after a refresh), cancel it.
+    if (roomCleanupTimers[roomId]) {
+      clearTimeout(roomCleanupTimers[roomId]);
+      delete roomCleanupTimers[roomId];
+    }
+
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
@@ -298,7 +310,13 @@ io.on('connection', (socket) => {
           roomState[roomId].admin = clientsInRoom[0];
           roomState[roomId].permissions[clientsInRoom[0]] = true;
         } else {
-          delete roomState[roomId];
+          // Instead of immediate deletion, we start a timer.
+          // This prevents state loss when the last user refreshes the page,
+          // as the disconnect event fires immediately, but the new join happens shortly after.
+          roomCleanupTimers[roomId] = setTimeout(() => {
+            delete roomState[roomId];
+            delete roomCleanupTimers[roomId];
+          }, ROOM_CLEANUP_DELAY_MS);
         }
       }
 
