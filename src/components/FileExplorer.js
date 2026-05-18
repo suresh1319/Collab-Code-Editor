@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
     File,
@@ -83,6 +83,14 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
         clearTimeout(undoToast.timer);
         setUndoToast(null);
     };
+    
+    useEffect(() => {
+        return () => {
+            if (undoToast?.timer) {
+                clearTimeout(undoToast.timer);
+            }
+        };
+    }, [undoToast]);
 
     const children = (node.children || []).map(id => fileSystem[id]).filter(Boolean);
 
