@@ -27,7 +27,8 @@ app.use(
           "ws://localhost:3000",
           "http://localhost:3000",
           "wss://your-backend.railway.app",
-          "https://your-backend.railway.app"
+          "https://your-backend.railway.app",
+          "https://ce.judge0.com"
         ],
       },
     },
