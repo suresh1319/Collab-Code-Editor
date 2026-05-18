@@ -62,6 +62,60 @@ function getModeFromFilename(name = '') {
   return modeMap[ext] || 'text/plain';
 }
 
+function getLanguageLabel(fileName = '') {
+  const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+  const mode = getModeFromFilename(fileName);
+  const normalizedMode = typeof mode === 'string' ? mode.toLowerCase() : mode?.name?.toLowerCase();
+
+  const extensionLabelMap = {
+    js: 'JAVASCRIPT',
+    jsx: 'JAVASCRIPT',
+    ts: 'TYPESCRIPT',
+    tsx: 'TYPESCRIPT',
+    json: 'JSON',
+    html: 'HTML',
+    htm: 'HTML',
+    css: 'CSS',
+    scss: 'SCSS',
+    py: 'PYTHON',
+    md: 'MARKDOWN',
+    markdown: 'MARKDOWN',
+    xml: 'XML',
+    svg: 'SVG',
+    sh: 'SHELL',
+    bash: 'SHELL',
+    sql: 'SQL',
+    php: 'PHP',
+    c: 'C',
+    cpp: 'C++',
+    cc: 'C++',
+    cxx: 'C++',
+    h: 'C',
+    hpp: 'C++',
+    java: 'JAVA',
+    cs: 'C#',
+  };
+
+  const modeLabelMap = {
+    javascript: ext === 'ts' || ext === 'tsx' ? 'TYPESCRIPT' : 'JAVASCRIPT',
+    htmlmixed: 'HTML',
+    css: ext === 'scss' ? 'SCSS' : 'CSS',
+    python: 'PYTHON',
+    markdown: 'MARKDOWN',
+    xml: ext === 'svg' ? 'SVG' : 'XML',
+    shell: 'SHELL',
+    sql: 'SQL',
+    php: 'PHP',
+    'text/x-csrc': 'C',
+    'text/x-c++src': 'C++',
+    'text/x-java': 'JAVA',
+    'text/x-csharp': 'C#',
+    'text/plain': ext ? ext.toUpperCase() : 'TEXT',
+  };
+
+  return extensionLabelMap[ext] || modeLabelMap[normalizedMode] || (ext ? ext.toUpperCase() : 'TEXT');
+}
+
 const cursorColors = ['#ffb86c', '#ff79c6', '#8be9fd', '#50fa7b', '#bd93f9', '#ff5555', '#f1fa8c'];
 function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
@@ -233,7 +287,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
   if (!socketRef.current) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="editor-shell">
       <div className="presence-bar">
         {peers.map((peer) => (
           <div key={peer.clientId} className="presence-indicator" style={{ backgroundColor: peer.color }} title={peer.name}>
@@ -241,7 +295,9 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
           </div>
         ))}
         <span className="presence-filename">{fileName}</span>
-        <span className="presence-lang">{(getModeFromFilename(fileName)?.name || getModeFromFilename(fileName) || 'text').toString().toUpperCase()}</span>
+        <span className="presence-lang" title={getLanguageLabel(fileName)}>
+          {getLanguageLabel(fileName)}
+        </span>
       </div>
       <textarea ref={textareaRef} id="realtimeEditor"></textarea>
     </div>

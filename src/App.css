@@ -211,6 +211,8 @@
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-width: 0;
+  position: relative;
 }
 
 /* ---- Top Navbar ---- */
@@ -231,6 +233,8 @@
   align-items: center;
   gap: 8px;
   color: var(--text-color);
+  min-width: 0;
+  flex: 1;
 }
 
 .navbar-room-icon {
@@ -241,6 +245,10 @@
   font-size: 0.82rem;
   font-weight: 600;
   opacity: 0.8;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .navbar-separator {
@@ -251,6 +259,10 @@
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--accent-color);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .top-navbar-right {
@@ -258,6 +270,7 @@
   align-items: center;
   gap: 12px;
   color: var(--text-color);
+  flex-shrink: 0;
 }
 
 .navbar-collaborators {
@@ -346,6 +359,18 @@
   padding: 12px 0;
   border-right: 1px solid var(--border-color);
   z-index: 20;
+}
+
+.resizer {
+  width: 5px;
+  min-width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.resizer:hover {
+  background: rgba(74, 237, 136, 0.18);
 }
 
 .activity-bar-top,
@@ -438,6 +463,10 @@
   border-right: 1px solid var(--border-color);
   overflow: hidden;
   transition: background 0.3s ease;
+}
+
+.mobile-side-overlay {
+  display: none;
 }
 
 .panel-header {
@@ -537,6 +566,27 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+.editor-stage {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .clientsList {
@@ -925,10 +975,17 @@
 /* ---- CodeMirror ---- */
 .CodeMirror {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   font-size: 17px;
   line-height: 1.6;
   padding-top: 10px;
   font-family: 'Fira Code', 'Courier New', monospace;
+}
+
+.CodeMirror-scroll {
+  width: 100%;
+  height: 100%;
 }
 
 /* ---- Yjs Cursors ---- */
@@ -1227,6 +1284,10 @@
   color: var(--text-color);
   opacity: 0.6;
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .presence-lang {
@@ -1237,15 +1298,29 @@
   padding: 2px 7px;
   border-radius: 4px;
   letter-spacing: 0.4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ---- CodeMirror ---- */
 .CodeMirror {
   flex: 1;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   font-size: 15px;
   line-height: 1.65;
   font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+}
+
+.editor-stage > .editor-shell,
+.editor-stage > .editor-empty {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .editorWrap>div:last-child {
@@ -1917,5 +1992,352 @@ body[data-theme='light'] .console-separator::after {
 
   .hero-btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-navbar {
+    height: auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .top-navbar-left {
+    flex: 1 1 100%;
+  }
+
+  .top-navbar-right {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .navbar-run-btn,
+  .navbar-leave-btn {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 0.76rem;
+  }
+
+  .navbar-icon-btn {
+    padding: 5px;
+  }
+
+  .activity-bar {
+    width: 50px;
+    min-width: 50px;
+    padding: 10px 0;
+  }
+
+  .activity-btn {
+    width: 38px;
+    height: 38px;
+    margin: 2px 0;
+  }
+
+  .activity-logo {
+    margin-bottom: 8px;
+    font-size: 0.88rem;
+  }
+
+  .side-panel--mobile .panel-header {
+    padding: 10px 10px 8px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .side-panel--mobile {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50px;
+    width: min(168px, calc(100vw - 62px)) !important;
+    min-width: min(168px, calc(100vw - 62px)) !important;
+    max-width: calc(100vw - 62px);
+    z-index: 40;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.28);
+  }
+
+  .mobile-side-overlay {
+    display: block;
+    position: absolute;
+    inset: 0;
+    border: none;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.28);
+    z-index: 35;
+    cursor: pointer;
+  }
+
+  .side-panel--mobile .panel-header-actions {
+    width: 100%;
+  }
+
+  .side-panel--mobile .panel-header-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 4px 6px;
+  }
+
+  .side-panel--mobile .panel-body {
+    padding: 6px;
+  }
+
+  .file-tab {
+    padding: 7px 10px;
+  }
+
+  .presence-bar {
+    padding: 5px 8px;
+    gap: 6px;
+  }
+
+  .presence-indicator {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .presence-lang {
+    padding: 2px 6px;
+    font-size: 0.64rem;
+  }
+
+  .CodeMirror {
+    font-size: 14px;
+  }
+
+  .readonly-badge {
+    right: 12px;
+    bottom: 12px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+  }
+
+  .console-header {
+    padding: 0 10px;
+  }
+
+  .console-header-left,
+  .console-header-right {
+    gap: 5px;
+  }
+
+  .console-btn {
+    padding: 3px 7px;
+  }
+}
+
+@media (max-width: 425px) {
+  .top-navbar {
+    padding: 8px 10px;
+  }
+
+  .navbar-room-name,
+  .navbar-file-name {
+    font-size: 0.76rem;
+  }
+
+  .top-navbar-right {
+    gap: 6px;
+  }
+
+  .activity-bar {
+    width: 46px;
+    min-width: 46px;
+  }
+
+  .side-panel--mobile {
+    left: 46px;
+    width: min(152px, calc(100vw - 54px)) !important;
+    min-width: min(152px, calc(100vw - 54px)) !important;
+    max-width: calc(100vw - 54px);
+  }
+
+  .activity-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .file-tab {
+    padding: 6px 8px;
+    font-size: 0.76rem;
+  }
+
+  .file-tab-name {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .presence-filename {
+    max-width: 42%;
+  }
+
+  .presence-lang {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .navbar-leave-label {
+    display: none;
+  }
+
+  .navbar-leave-btn {
+    padding: 0 8px;
+  }
+
+  .side-panel--mobile .panel-header-btn {
+    font-size: 0.64rem;
+  }
+
+  .side-panel--mobile .fs-node-row {
+    padding-right: 4px;
+  }
+
+  .side-panel--mobile {
+    width: min(140px, calc(100vw - 52px)) !important;
+    min-width: min(140px, calc(100vw - 52px)) !important;
+    max-width: calc(100vw - 52px);
+  }
+
+  .presence-filename {
+    max-width: 36%;
+  }
+}
+
+/* =========================
+   MOBILE RESPONSIVE FIX
+========================= */
+
+@media (max-width: 768px) {
+  .mainWrap {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .side-panel {
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+  }
+
+  .editorWrap {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .editor-stage,
+  .editor-shell {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .presence-bar {
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+  }
+
+  .top-navbar {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .top-navbar-right {
+    gap: 4px;
+  }
+
+  .navbar-room-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .presence-lang {
+    display: inline-flex !important;
+    flex-shrink: 0;
+  }
+
+  .navbar-leave-label,
+  .navbar-run-btn span {
+    display: inline !important;
+  }
+
+  .activity-bar {
+    width: 54px;
+    min-width: 54px;
+  }
+
+  .panel-header-actions {
+    display: none;
+  }
+
+  .CodeMirror,
+  .CodeMirror-scroll {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .client-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .client-info {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .client-name {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+  }
+
+  .client-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-left: 44px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .action-btn--admin {
+    max-width: 100%;
+    white-space: nowrap;
+  }
+
+  .client-actions .action-btn--admin {
+    display: none;
   }
 }
