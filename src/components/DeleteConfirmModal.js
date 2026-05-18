@@ -8,10 +8,11 @@ export default function DeleteConfirmModal({ target, onCancel, onConfirm }) {
     confirmRef.current?.focus();
     const handler = (e) => {
       if (e.key === "Escape") onCancel();
-      if (e.key === "Enter") onConfirm();
+      if (e.key === "Enter" && document.activeElement !== confirmRef.current) onConfirm();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, [onCancel, onConfirm]);
   }, [onCancel, onConfirm]);
 
   const isFolder = target?.type === "folder";
