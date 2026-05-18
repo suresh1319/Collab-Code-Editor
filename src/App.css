@@ -2046,20 +2046,20 @@ body[data-theme='light'] .console-separator::after {
     font-size: 0.88rem;
   }
 
-  .side-panel--mobile .panel-header {
+  .side-panel.side-panel--mobile .panel-header {
     padding: 10px 10px 8px;
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .side-panel--mobile {
+  .side-panel.side-panel--mobile {
     position: absolute;
     top: 0;
     bottom: 0;
     left: var(--activity-bar-width);
-    width: min(168px, calc(100vw - var(--activity-bar-width) - 12px));
-    min-width: min(168px, calc(100vw - var(--activity-bar-width) - 12px));
-    max-width: calc(100vw - var(--activity-bar-width) - 12px);
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
     z-index: 40;
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.28);
   }
@@ -2075,17 +2075,17 @@ body[data-theme='light'] .console-separator::after {
     cursor: pointer;
   }
 
-  .side-panel--mobile .panel-header-actions {
+  .side-panel.side-panel--mobile .panel-header-actions {
     width: 100%;
   }
 
-  .side-panel--mobile .panel-header-btn {
+  .side-panel.side-panel--mobile .panel-header-btn {
     flex: 1;
     justify-content: center;
     padding: 4px 6px;
   }
 
-  .side-panel--mobile .panel-body {
+  .side-panel.side-panel--mobile .panel-body {
     padding: 6px;
   }
 
@@ -2204,18 +2204,12 @@ body[data-theme='light'] .console-separator::after {
     padding: 0 8px;
   }
 
-  .side-panel--mobile .panel-header-btn {
+  .side-panel.side-panel--mobile .panel-header-btn {
     font-size: 0.64rem;
   }
 
-  .side-panel--mobile .fs-node-row {
+  .side-panel.side-panel--mobile .fs-node-row {
     padding-right: 4px;
-  }
-
-  .side-panel--mobile {
-    width: min(140px, calc(100vw - var(--activity-bar-width) - 6px));
-    min-width: min(140px, calc(100vw - var(--activity-bar-width) - 6px));
-    max-width: calc(100vw - var(--activity-bar-width) - 6px);
   }
 
   .presence-filename {
@@ -2233,12 +2227,6 @@ body[data-theme='light'] .console-separator::after {
     max-width: 100vw;
     min-width: 0;
     overflow: hidden;
-  }
-
-  .side-panel {
-    width: 180px !important;
-    min-width: 180px !important;
-    max-width: 180px !important;
   }
 
   .editorWrap {
@@ -2289,7 +2277,7 @@ body[data-theme='light'] .console-separator::after {
 
   .navbar-leave-label,
   .navbar-run-btn span {
-    display: inline !important;
+    display: inline;
   }
 
   .activity-bar {
