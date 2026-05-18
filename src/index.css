@@ -9,6 +9,7 @@
   --input-text: #f8f8f2;
   --box-shadow: rgba(0,0,0,0.3);
   --accent-color: #007acc;
+  --activity-bar-width: 58px;
 }
 
 [data-theme="light"] {

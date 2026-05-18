@@ -1996,6 +1996,10 @@ body[data-theme='light'] .console-separator::after {
 }
 
 @media (max-width: 768px) {
+  :root {
+    --activity-bar-width: 50px;
+  }
+
   .top-navbar {
     height: auto;
     min-height: 40px;
@@ -2026,8 +2030,8 @@ body[data-theme='light'] .console-separator::after {
   }
 
   .activity-bar {
-    width: 50px;
-    min-width: 50px;
+    width: var(--activity-bar-width);
+    min-width: var(--activity-bar-width);
     padding: 10px 0;
   }
 
@@ -2052,10 +2056,10 @@ body[data-theme='light'] .console-separator::after {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 50px;
-    width: min(168px, calc(100vw - 62px)) !important;
-    min-width: min(168px, calc(100vw - 62px)) !important;
-    max-width: calc(100vw - 62px);
+    left: var(--activity-bar-width);
+    width: min(168px, calc(100vw - var(--activity-bar-width) - 12px));
+    min-width: min(168px, calc(100vw - var(--activity-bar-width) - 12px));
+    max-width: calc(100vw - var(--activity-bar-width) - 12px);
     z-index: 40;
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.28);
   }
@@ -2131,6 +2135,10 @@ body[data-theme='light'] .console-separator::after {
 }
 
 @media (max-width: 425px) {
+  :root {
+    --activity-bar-width: 46px;
+  }
+
   .top-navbar {
     padding: 8px 10px;
   }
@@ -2145,15 +2153,8 @@ body[data-theme='light'] .console-separator::after {
   }
 
   .activity-bar {
-    width: 46px;
-    min-width: 46px;
-  }
-
-  .side-panel--mobile {
-    left: 46px;
-    width: min(152px, calc(100vw - 54px)) !important;
-    min-width: min(152px, calc(100vw - 54px)) !important;
-    max-width: calc(100vw - 54px);
+    width: var(--activity-bar-width);
+    min-width: var(--activity-bar-width);
   }
 
   .activity-btn {
@@ -2172,12 +2173,25 @@ body[data-theme='light'] .console-separator::after {
     text-overflow: ellipsis;
   }
 
+  .presence-bar {
+    gap: 4px;
+    padding: 4px 6px;
+    overflow: hidden;
+  }
+
   .presence-filename {
+    font-size: 0.72rem;
     max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .presence-lang {
-    display: none;
+    font-size: 0.62rem;
+    padding: 2px 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }
 
@@ -2199,9 +2213,9 @@ body[data-theme='light'] .console-separator::after {
   }
 
   .side-panel--mobile {
-    width: min(140px, calc(100vw - 52px)) !important;
-    min-width: min(140px, calc(100vw - 52px)) !important;
-    max-width: calc(100vw - 52px);
+    width: min(140px, calc(100vw - var(--activity-bar-width) - 6px));
+    min-width: min(140px, calc(100vw - var(--activity-bar-width) - 6px));
+    max-width: calc(100vw - var(--activity-bar-width) - 6px);
   }
 
   .presence-filename {
@@ -2270,7 +2284,6 @@ body[data-theme='light'] .console-separator::after {
   }
 
   .presence-lang {
-    display: inline-flex !important;
     flex-shrink: 0;
   }
 
@@ -2280,8 +2293,8 @@ body[data-theme='light'] .console-separator::after {
   }
 
   .activity-bar {
-    width: 54px;
-    min-width: 54px;
+    width: var(--activity-bar-width);
+    min-width: var(--activity-bar-width);
   }
 
   .panel-header-actions {

@@ -68,7 +68,7 @@ const EditorPage = () => {
         const saved = localStorage.getItem('sideWidth');
         return saved ? Number(saved) : 260;
     });
-    const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+    const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT);
     const resizingRef = useRef(false);
     const startXRef = useRef(0);
     const startWidthRef = useRef(260);
@@ -91,7 +91,7 @@ const EditorPage = () => {
     }, [sideWidth]);
 
     useEffect(() => {
-        const handleResize = () => setViewportWidth(window.innerWidth);
+        const handleResize = () => setIsMobileViewport(window.innerWidth <= MOBILE_BREAKPOINT);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -566,9 +566,6 @@ const EditorPage = () => {
     if (!location.state) return <Navigate to="/" />;
 
     const activeFile = activeFileId ? fileSystem[activeFileId] : null;
-    const isMobileViewport = viewportWidth <= MOBILE_BREAKPOINT;
-    const mobileSideWidth = Math.max(112, Math.min(168, Math.floor(viewportWidth * 0.38)));
-    const effectiveSideWidth = isMobileViewport ? mobileSideWidth : sideWidth;
 
     return (
         <div className="app-container">
@@ -732,7 +729,7 @@ const EditorPage = () => {
                         )}
                         <div
                             className={`side-panel${isMobileViewport ? ' side-panel--mobile' : ''}`}
-                            style={{ width: `${effectiveSideWidth}px`, minWidth: `${effectiveSideWidth}px` }}
+                            style={isMobileViewport ? undefined : { width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}
                         >
                             {activePanel === 'explorer' && (
                                 <>
