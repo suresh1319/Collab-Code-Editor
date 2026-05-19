@@ -1,10 +1,10 @@
 export const BINARY_EXTS = new Set([
-  'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp',
+  'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'bmp',
   'mp4', 'mp3', 'woff', 'woff2', 'ttf', 'eot', 'pdf', 'zip'
 ]);
 
 export const IMAGE_EXTS = new Set([
-  'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp'
+  'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'bmp'
 ]);
 
 export function getExtension(name = '') {

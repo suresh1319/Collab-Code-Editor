@@ -347,7 +347,7 @@ const EditorPage = () => {
         const activeFile = fileSystem[activeFileId];
         if (!activeFile) return;
         
-        if (isImage(activeFile.name)) {
+        if (isImageMimeType(activeFile.mimeType || getMimeTypeFromFilename(activeFile.name))) {
             toast.error('Image files cannot be executed');
             return;
         }
@@ -589,8 +589,8 @@ const EditorPage = () => {
                         <button
                             className={`navbar-run-btn${isRunning ? ' running' : ''}`}
                             onClick={handleRun}
-                            disabled={isRunning || isImage(activeFile?.name)}
-                            title={isImage(activeFile?.name) ? 'Image files cannot be executed' : isRunning ? 'Running…' : 'Run code (Ctrl+Enter)'}
+                            disabled={isRunning || showImagePreview}
+                            title={showImagePreview ? 'Image files cannot be executed' : isRunning ? 'Running…' : 'Run code (Ctrl+Enter)'}
                         >
                             {isRunning ? (
                                 <><span className="run-btn-spinner" /><span>Running…</span></>
