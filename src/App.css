@@ -211,6 +211,7 @@
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-width: 0;
 }
 
 /* ---- Top Navbar ---- */
@@ -231,6 +232,7 @@
   align-items: center;
   gap: 8px;
   color: var(--text-color);
+  min-width: 0;
 }
 
 .navbar-room-icon {
@@ -258,6 +260,7 @@
   align-items: center;
   gap: 12px;
   color: var(--text-color);
+  min-width: 0;
 }
 
 .navbar-collaborators {
@@ -537,6 +540,8 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-width: 0;
+  min-height: 0;
 }
 
 .clientsList {
@@ -1227,6 +1232,10 @@
   color: var(--text-color);
   opacity: 0.6;
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .presence-lang {
@@ -1886,9 +1895,145 @@ body[data-theme='light'] .console-separator::after {
   .landing-title {
     font-size: 3rem;
   }
+
+  .top-navbar {
+    height: auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    align-items: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .top-navbar-left,
+  .top-navbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .navbar-room-name,
+  .navbar-file-name {
+    max-width: calc(100vw - 96px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mainWrap {
+    flex-direction: column;
+  }
+
+  .activity-bar {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .activity-bar-top,
+  .activity-bar-bottom {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .activity-logo {
+    margin-bottom: 0;
+  }
+
+  .activity-btn {
+    width: 40px;
+    height: 40px;
+    margin: 0;
+  }
+
+  .side-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-height: 44vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .panel-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .panel-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .panel-body {
+    min-height: 0;
+  }
+
+  .presence-bar {
+    flex-wrap: wrap;
+  }
+
+  .presence-filename {
+    width: 100%;
+    margin-left: 0;
+    order: 3;
+  }
+
+  .presence-lang {
+    order: 2;
+  }
+
+  .file-tab {
+    padding: 7px 10px;
+  }
+
+  .navbar-leave-btn {
+    padding: 6px 10px;
+  }
 }
 
 @media (max-width: 700px) {
+  .top-navbar-right {
+    gap: 8px;
+  }
+
+  .navbar-leave-btn span {
+    display: none;
+  }
+
+  .activity-logo {
+    display: none;
+  }
+
+  .panel-header-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .file-tab-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .console-header {
+    height: auto;
+    min-height: 36px;
+    padding: 8px 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .console-header-left,
+  .console-header-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
   .landing-navbar {
     flex-direction: column;
     gap: 18px;
