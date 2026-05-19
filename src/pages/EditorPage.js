@@ -35,25 +35,7 @@ import {
 import VirtualConsole from '../components/VirtualConsole';
 import { useCodeRunner } from '../hooks/useCodeRunner';
 
-function getModeFromFilename(name = "") {
-    const ext = name.split(".").pop().toLowerCase();
-    const modeMap = {
-        js: { name: "javascript", json: false },
-        jsx: { name: "javascript", json: false },
-        ts: { name: "javascript", json: false },
-        tsx: { name: "javascript", json: false },
-        json: { name: "javascript", json: true },
-        html: "htmlmixed", htm: "htmlmixed",
-        xml: "xml", svg: "xml",
-        css: "css", scss: "css",
-        py: "python", md: "markdown", markdown: "markdown",
-        sh: "shell", bash: "shell",
-        sql: "sql", php: "php",
-        c: "text/x-csrc", cpp: "text/x-c++src",
-        java: "text/x-java", cs: "text/x-csharp",
-    };
-    return modeMap[ext] || "text/plain";
-}
+import { isBinary, isImage, getModeFromFilename } from '../utils/fileUtils';
 
 const EditorPage = () => {
     const MOBILE_BREAKPOINT = 768;
@@ -370,6 +352,12 @@ const EditorPage = () => {
         if (!activeFileId) return;
         const activeFile = fileSystem[activeFileId];
         if (!activeFile) return;
+        
+        if (isImage(activeFile.name)) {
+            toast.error('Image files cannot be executed');
+            return;
+        }
+
         const editor = editorsRef.current[activeFileId];
         const code = editor?.getValue?.() ?? fileContentsRef.current[activeFileId] ?? "";
         setConsoleOpen(true);
@@ -468,10 +456,20 @@ const EditorPage = () => {
     }
 
     // ---- Upload handler ----
-    const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
-    function isBinary(name) {
-        const ext = name.split('.').pop().toLowerCase();
-        return BINARY_EXTS.has(ext);
+
+    async function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                if (e.target.result) {
+                    resolve(e.target.result);
+                } else {
+                    reject(new Error('File reader returned empty result'));
+                }
+            };
+            reader.onerror = () => reject(new Error('Failed to read file as data URL'));
+            reader.readAsDataURL(file);
+        });
     }
 
     async function readFileAsText(file) {
@@ -534,8 +532,19 @@ const EditorPage = () => {
             // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
 
-            // Skip content reading for binary files — their node is still created
-            if (isBinary(file.name)) return null;
+            // Handle image vs binary vs text reading
+            if (isImage(file.name)) {
+                try {
+                    const content = await readFileAsDataURL(file);
+                    return { fileId, content };
+                } catch (err) {
+                    console.error("Failed to read image data URL for", file.name, err);
+                    return { fileId, content: '' };
+                }
+            }
+            if (isBinary(file.name)) {
+                return null; // Skip content reading for non-image binary files
+            }
             const content = await readFileAsText(file);
             return { fileId, content };
         });
@@ -590,8 +599,8 @@ const EditorPage = () => {
                         <button
                             className={`navbar-run-btn${isRunning ? ' running' : ''}`}
                             onClick={handleRun}
-                            disabled={isRunning}
-                            title={isRunning ? 'Running…' : 'Run code (Ctrl+Enter)'}
+                            disabled={isRunning || isImage(activeFile?.name)}
+                            title={isImage(activeFile?.name) ? 'Image files cannot be executed' : isRunning ? 'Running…' : 'Run code (Ctrl+Enter)'}
                         >
                             {isRunning ? (
                                 <><span className="run-btn-spinner" /><span>Running…</span></>

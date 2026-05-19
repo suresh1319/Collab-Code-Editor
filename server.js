@@ -58,6 +58,12 @@ const socketRoomMap = {};
 // roomState: { admin, permissions, fileSystem, fileContents }
 const roomState = {};
 
+// Delayed cleanup to prevent data loss on page refresh
+// When a user refreshes, their socket disconnects before the new one connects.
+// A grace period ensures the room state is preserved during this transition.
+const roomCleanupTimers = {};
+const ROOM_CLEANUP_DELAY_MS = 60000;
+
 // ---- Permission helper ----
 // Returns true if socket is the room admin OR has been granted write access.
 function canWriteToRoom(socket, roomId) {
@@ -91,6 +97,12 @@ function getAllConnectedClients(roomId) {
 
 io.on('connection', (socket) => {
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
+    // If there was a pending cleanup for this room (e.g. after a refresh), cancel it.
+    if (roomCleanupTimers[roomId]) {
+      clearTimeout(roomCleanupTimers[roomId]);
+      delete roomCleanupTimers[roomId];
+    }
+
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
@@ -123,45 +135,6 @@ io.on('connection', (socket) => {
       fileSystem: roomState[roomId].fileSystem,
       fileContents: roomState[roomId].fileContents,
     });
-  });
-
-  // ---- File System Events ----
-  socket.on(ACTIONS.FS_UPLOAD_BATCH, ({ roomId, nodes, fileContents }, ack) => {
-    const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
-
-    if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
-
-    const fs = roomState[roomId].fileSystem;
-
-    // Merge nodes into file system in the order provided (folders before files)
-    if (!Array.isArray(nodes)) {
-      reply(false, 'Invalid upload payload: nodes must be an array.');
-      return;
-    }
-    for (const node of nodes) {
-      fs[node.id] = node;
-      if (fs[node.parentId]) {
-        if (!fs[node.parentId].children) fs[node.parentId].children = [];
-        // Avoid adding duplicate child references
-        if (!fs[node.parentId].children.includes(node.id)) {
-          fs[node.parentId].children.push(node.id);
-        }
-      }
-    }
-
-    // Store uploaded file contents server-side for late joiners
-    if (fileContents && typeof fileContents === 'object') {
-      Object.assign(roomState[roomId].fileContents, fileContents);
-    }
-
-    // Broadcast updated file tree AND contents atomically in one frame.
-    io.to(roomId).emit(ACTIONS.FS_SYNC, {
-      fileSystem: { ...fs },
-      fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
-    });
-
-    // Acknowledge success to the uploader so the client can show the toast
-    reply(true, '');
   });
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
@@ -337,7 +310,10 @@ io.on('connection', (socket) => {
           roomState[roomId].admin = clientsInRoom[0];
           roomState[roomId].permissions[clientsInRoom[0]] = true;
         } else {
-          delete roomState[roomId];
+          roomCleanupTimers[roomId] = setTimeout(() => {
+            delete roomState[roomId];
+            delete roomCleanupTimers[roomId];
+          }, ROOM_CLEANUP_DELAY_MS);
         }
       }
 

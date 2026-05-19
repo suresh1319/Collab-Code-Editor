@@ -43,6 +43,24 @@
   transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
+.backHomeBtn {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: #4aed88;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 18px;
+  padding: 0;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.backHomeBtn:hover {
+  color: #2b824c;
+  transform: translateX(-2px);
+}
+
 .inputGroup {
   display: flex;
   flex-direction: column;
@@ -1733,7 +1751,7 @@ body[data-theme='light'] .console-separator::after {
 }
 
 .landing-primary-btn {
-  background: linear-gradient(135deg, #4aed88, #229ED9);
+  background: linear-gradient(to right, #22c55e, #06b6d4);
   color: white;
 }
 
@@ -1839,6 +1857,10 @@ body[data-theme='light'] .console-separator::after {
   border-radius: 18px;
   padding: 28px;
   transition: all 0.25s ease;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .feature-card:hover {
@@ -1883,6 +1905,10 @@ body[data-theme='light'] .console-separator::after {
   padding: 28px;
   text-align: center;
   transition: all 0.25s ease;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .step-card:hover {
