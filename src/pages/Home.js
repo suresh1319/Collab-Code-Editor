@@ -2,6 +2,7 @@ import { React, useState, useEffect } from "react";
 import { v4 as uuid } from "uuid";
 import toast from "react-hot-toast";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import SiteFooter from "../components/SiteFooter";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -41,62 +42,65 @@ const Home = () => {
             userName,
         }
     });
-  }
+  };
    const handleInputEnter=(e)=>{
        if(e.code==='Enter'){
         joinRoom();
        }
-    }
+    };
   return (
-    <div className="homePageWrapper">
-      <button className="theme-toggle" onClick={toggleTheme} title="Toggle Theme">
-        {theme === 'light' ? '🌙' : '☀️'}
-      </button>
-      <div className="formWrapper">
-        <button
-          type="button"
-          className="backHomeBtn"
-          onClick={() => navigate('/')}
-        >
-          ← Back to Home
+    <div className="homePageShell">
+      <div className="homePageWrapper">
+        <button className="theme-toggle" onClick={toggleTheme} title="Toggle Theme">
+          {theme === 'light' ? '🌙' : '☀️'}
         </button>
-        <div className="home-logo-text">
-          <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
-        </div>
-        <h4 className="mainlabel">
-            {searchParams.get('roomId') ? '🎉 You were invited! Enter your username to join' : 'Paste Invitation Room Id'}
-        </h4>
-        <div className="inputGroup">
-          <input
-            type="text"
-            className="inputBox"
-            value={roomID}
-            onChange={(e) => setRoomId(e.target.value)}
-            placeholder="ROOM ID"
-            onKeyUp={handleInputEnter}
-          />
-          <input
-            type="text"
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-            className="inputBox"
-            placeholder="USERNAME"
-            onKeyUp={handleInputEnter}
-          />
-          <button onClick={joinRoom} className="btn joinbtn">Join</button>
-          <span className="createInfo">
-            Want to create a new room? Click here{" "}
-            <a
-              href="#"
-              onClick={createNewRoom}
-              id="create-room"
-              className="createNewBtn"
-            >
-              New Room
-            </a>
-          </span>
+        <div className="formWrapper">
+          <button
+            type="button"
+            className="backHomeBtn"
+            onClick={() => navigate('/')}
+          >
+            ← Back to Home
+          </button>
+          <div className="home-logo-text">
+            <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
+          </div>
+          <h4 className="mainlabel">
+              {searchParams.get('roomId') ? '🎉 You were invited! Enter your username to join' : 'Paste Invitation Room Id'}
+          </h4>
+          <div className="inputGroup">
+            <input
+              type="text"
+              className="inputBox"
+              value={roomID}
+              onChange={(e) => setRoomId(e.target.value)}
+              placeholder="ROOM ID"
+              onKeyUp={handleInputEnter}
+            />
+            <input
+              type="text"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              className="inputBox"
+              placeholder="USERNAME"
+              onKeyUp={handleInputEnter}
+            />
+            <button onClick={joinRoom} className="btn joinbtn">Join</button>
+            <span className="createInfo">
+              Want to create a new room? Click here{" "}
+              <a
+                href="#"
+                onClick={createNewRoom}
+                id="create-room"
+                className="createNewBtn"
+              >
+                New Room
+              </a>
+            </span>
+          </div>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 };
