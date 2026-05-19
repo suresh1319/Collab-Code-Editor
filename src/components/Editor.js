@@ -32,10 +32,13 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { CodemirrorBinding } from 'y-codemirror';
 import { isBinary, isImage, getModeFromFilename } from '../utils/fileUtils';
-
+import { createLatestValueScheduler } from '../utils/latestValueScheduler';
 
 
 const cursorColors = ['#ffb86c', '#ff79c6', '#8be9fd', '#50fa7b', '#bd93f9', '#ff5555', '#f1fa8c'];
+const CODE_SNAPSHOT_DELAY_MS = 75;
+const CURSOR_AWARENESS_DELAY_MS = 50;
+
 function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
 }
@@ -47,6 +50,8 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
   const bindingRef = useRef(null);
   const bookmarksRef = useRef(new Map());
   const timeoutsRef = useRef(new Map());
+  const codeChangeSchedulerRef = useRef(null);
+  const cursorSchedulerRef = useRef(null);
   const [peers, setPeers] = useState([]);
 
   // Enforce readOnly dynamically
@@ -79,6 +84,14 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     if (bindingRef.current) { bindingRef.current.destroy(); bindingRef.current = null; }
     if (providerRef.current) { providerRef.current.destroy(); providerRef.current = null; }
     if (editorRef.current) { editorRef.current.toTextArea(); editorRef.current = null; }
+    if (codeChangeSchedulerRef.current) {
+      codeChangeSchedulerRef.current.flush();
+      codeChangeSchedulerRef.current = null;
+    }
+    if (cursorSchedulerRef.current) {
+      cursorSchedulerRef.current.cancel();
+      cursorSchedulerRef.current = null;
+    }
     bookmarksRef.current.forEach(b => b.clear());
     bookmarksRef.current.clear();
     timeoutsRef.current.forEach(clearTimeout);
@@ -105,8 +118,13 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     });
     editorRef.current = editor;
 
+    const codeChangeScheduler = createLatestValueScheduler((value) => {
+      if (onCodeChange) onCodeChange(fileId, value);
+    }, CODE_SNAPSHOT_DELAY_MS);
+    codeChangeSchedulerRef.current = codeChangeScheduler;
+
     editor.on('change', (instance) => {
-      if (onCodeChange) onCodeChange(fileId, instance.getValue());
+      codeChangeScheduler.schedule(instance.getValue());
     });
 
     if (onEditorReady) onEditorReady(fileId, editor);
@@ -139,6 +157,10 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     const awareness = provider.awareness;
     const myColor = getColor(awareness.clientID);
     awareness.setLocalStateField('user', { name: userName || 'Anonymous', color: myColor });
+    const cursorScheduler = createLatestValueScheduler((cursor) => {
+      awareness.setLocalStateField('customCursor', cursor);
+    }, CURSOR_AWARENESS_DELAY_MS);
+    cursorSchedulerRef.current = cursorScheduler;
 
     awareness.on('change', () => {
       const states = awareness.getStates();
@@ -190,10 +212,18 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     editor.on('cursorActivity', () => {
       const anchor = editor.getCursor('anchor');
       const head = editor.getCursor('head');
-      awareness.setLocalStateField('customCursor', { anchor, head });
+      cursorScheduler.schedule({ anchor, head });
     });
 
     return () => {
+      if (codeChangeSchedulerRef.current) {
+        codeChangeSchedulerRef.current.flush();
+        codeChangeSchedulerRef.current = null;
+      }
+      if (cursorSchedulerRef.current) {
+        cursorSchedulerRef.current.cancel();
+        cursorSchedulerRef.current = null;
+      }
       if (bindingRef.current) { bindingRef.current.destroy(); bindingRef.current = null; }
       if (providerRef.current) { providerRef.current.destroy(); providerRef.current = null; }
       if (editorRef.current) { editorRef.current.toTextArea(); editorRef.current = null; }
