@@ -25,6 +25,11 @@ import ConfirmModal from '../components/ConfirmModal';
 import LeaveRoomModal from '../components/LeaveRoomModal';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
+import {
+    getMimeTypeFromFilename,
+    isBinaryFileName,
+    isImageMimeType,
+} from '../utils/filePreview';
 import { v4 as uuid } from 'uuid';
 import {
     useLocation,
@@ -445,28 +450,21 @@ const EditorPage = () => {
     }
 
     // ---- Upload handler ----
-
-    async function readFileAsDataURL(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                if (e.target.result) {
-                    resolve(e.target.result);
-                } else {
-                    reject(new Error('File reader returned empty result'));
-                }
-            };
-            reader.onerror = () => reject(new Error('Failed to read file as data URL'));
-            reader.readAsDataURL(file);
-        });
-    }
-
     async function readFileAsText(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = e => resolve(e.target.result);
             reader.onerror = () => resolve('');
             reader.readAsText(file);
+        });
+    }
+
+    async function readFileAsDataUrl(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
         });
     }
 
@@ -518,22 +516,17 @@ const EditorPage = () => {
             }
 
             const fileId = uuid();
+            const mimeType = file.type || getMimeTypeFromFilename(file.name) || null;
             // Always add the node so binary files appear in the file tree
-            nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
+            nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId, mimeType });
 
-            // Handle image vs binary vs text reading
-            if (isImage(file.name)) {
-                try {
-                    const content = await readFileAsDataURL(file);
-                    return { fileId, content };
-                } catch (err) {
-                    console.error("Failed to read image data URL for", file.name, err);
-                    return { fileId, content: '' };
-                }
+            if (isImageMimeType(mimeType)) {
+                const content = await readFileAsDataUrl(file);
+                return { fileId, content };
             }
-            if (isBinary(file.name)) {
-                return null; // Skip content reading for non-image binary files
-            }
+
+            // Skip content reading for other binary files — their node is still created
+            if (isBinaryFileName(file.name)) return null;
             const content = await readFileAsText(file);
             return { fileId, content };
         });
@@ -564,6 +557,14 @@ const EditorPage = () => {
     if (!location.state) return <Navigate to="/" />;
 
     const activeFile = activeFileId ? fileSystem[activeFileId] : null;
+    const activeFileMimeType = activeFile?.mimeType || getMimeTypeFromFilename(activeFile?.name || '');
+    const activeFileContent =
+        (activeFileId && (
+            fileContentsSnapshot[activeFileId] ??
+            fileContentsRef.current[activeFileId] ??
+            initialContentsRef.current[activeFileId]
+        )) || '';
+    const showImagePreview = !!activeFile && isImageMimeType(activeFileMimeType);
 
     return (
         <div className="app-container">
@@ -796,20 +797,55 @@ const EditorPage = () => {
                     {/* Editor — flex:1 fills space above console */}
                     <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                         {socketReady && activeFileId && activeFile ? (
-                            <Editor
-                                key={activeFileId}
-                                socketRef={socketRef}
-                                roomId={roomId}
-                                fileId={activeFileId}
-                                fileName={activeFile.name}
-                                onCodeChange={handleCodeChange}
-                                onEditorReady={handleEditorReady}
-                                userName={location.state?.userName}
-                                canWrite={canWrite}
-                                editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
-                                initialContent={initialContentsRef.current[activeFileId] || ''}
-                                fileContentsSnapshot={fileContentsSnapshot}
-                            />
+                            showImagePreview ? (
+                                <div
+                                    style={{
+                                        height: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: theme === 'light' ? '#f5f7fb' : '#10131a',
+                                        padding: '24px',
+                                    }}
+                                >
+                                    {activeFileContent ? (
+                                        <img
+                                            src={activeFileContent}
+                                            alt={activeFile.name}
+                                            style={{
+                                                maxWidth: '100%',
+                                                maxHeight: '100%',
+                                                objectFit: 'contain',
+                                                borderRadius: '12px',
+                                                boxShadow: theme === 'light'
+                                                    ? '0 12px 30px rgba(15, 23, 42, 0.12)'
+                                                    : '0 12px 30px rgba(0, 0, 0, 0.35)',
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="editor-empty">
+                                            <div className="editor-empty-inner">
+                                                <p>No image preview is available for this file yet.</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <Editor
+                                    key={activeFileId}
+                                    socketRef={socketRef}
+                                    roomId={roomId}
+                                    fileId={activeFileId}
+                                    fileName={activeFile.name}
+                                    onCodeChange={handleCodeChange}
+                                    onEditorReady={handleEditorReady}
+                                    userName={location.state?.userName}
+                                    canWrite={canWrite}
+                                    editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
+                                    initialContent={initialContentsRef.current[activeFileId] || ''}
+                                    fileContentsSnapshot={fileContentsSnapshot}
+                                />
+                            )
                         ) : (
                             <div className="editor-empty">
                                 <div className="editor-empty-inner">
