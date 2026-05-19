@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createThrottle, createDebounce } from '../utils/throttle';
 import Codemirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/dracula.css';
@@ -67,6 +68,21 @@ function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
 }
 
+// ── Throttle / debounce intervals (ms) ──
+// Cursor broadcasts are throttled so rapid arrow-key / mouse drags don't
+// flood the awareness channel. 50 ms ≈ 20 updates/sec — smooth enough for
+// collaborative cursors while slashing traffic by ~90 % during fast movement.
+const CURSOR_THROTTLE_MS = 50;
+// Awareness-change DOM updates (bookmark widgets for remote cursors) are
+// expensive. Throttling to 80 ms keeps remote cursors visually fluid
+// without hammering the main thread on every micro-state change.
+const AWARENESS_THROTTLE_MS = 80;
+// The code-change callback writes a React state snapshot used only for
+// downloads. Debouncing at 300 ms means the snapshot trails the actual
+// content by at most 300 ms — imperceptible for downloads, but eliminates
+// hundreds of redundant setState calls during fast typing.
+const CODE_CHANGE_DEBOUNCE_MS = 300;
+
 const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, canWrite, editorTheme, onEditorReady, initialContent }) => {
   const editorRef = useRef(null);
   const textareaRef = useRef(null);
@@ -75,6 +91,11 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
   const bookmarksRef = useRef(new Map());
   const timeoutsRef = useRef(new Map());
   const [peers, setPeers] = useState([]);
+
+  // Refs for rate-limiters so we can cancel them on cleanup
+  const cursorThrottleRef = useRef(null);
+  const awarenessThrottleRef = useRef(null);
+  const codeChangeDebounceRef = useRef(null);
 
   // Enforce readOnly dynamically
   useEffect(() => {
@@ -131,8 +152,17 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     });
     editorRef.current = editor;
 
+    // Debounce code-change state snapshots — the ref (fileContentsRef) is
+    // updated immediately by the parent, but the expensive setState that
+    // triggers a re-render is deferred so rapid keystrokes don't cause
+    // cascading React renders.
+    const codeChangeDebounce = createDebounce((fId, value) => {
+      if (onCodeChange) onCodeChange(fId, value);
+    }, CODE_CHANGE_DEBOUNCE_MS);
+    codeChangeDebounceRef.current = codeChangeDebounce;
+
     editor.on('change', (instance) => {
-      if (onCodeChange) onCodeChange(fileId, instance.getValue());
+      codeChangeDebounce.call(fileId, instance.getValue());
     });
 
     if (onEditorReady) onEditorReady(fileId, editor);
@@ -166,7 +196,11 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     const myColor = getColor(awareness.clientID);
     awareness.setLocalStateField('user', { name: userName || 'Anonymous', color: myColor });
 
-    awareness.on('change', () => {
+    // Throttle the awareness-change handler — this performs DOM manipulation
+    // (creating/clearing bookmark widgets) which is the most expensive work
+    // on the main thread. Without throttling, every remote keystroke triggers
+    // a full bookmark rebuild for all peers.
+    const awarenessThrottle = createThrottle(() => {
       const states = awareness.getStates();
       const activeClients = new Set();
       const currentPeers = [];
@@ -211,15 +245,36 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
           }
         }
       }
+    }, AWARENESS_THROTTLE_MS);
+    awarenessThrottleRef.current = awarenessThrottle;
+
+    awareness.on('change', () => {
+      awarenessThrottle.call();
     });
 
-    editor.on('cursorActivity', () => {
+    // Throttle cursor-position broadcasts — during fast arrow-key navigation
+    // or click-drag selections the cursor fires dozens of events per second.
+    // Throttling to ~20 updates/sec keeps remote cursors smooth while
+    // cutting outbound WebSocket frames dramatically.
+    const cursorThrottle = createThrottle(() => {
       const anchor = editor.getCursor('anchor');
       const head = editor.getCursor('head');
       awareness.setLocalStateField('customCursor', { anchor, head });
+    }, CURSOR_THROTTLE_MS);
+    cursorThrottleRef.current = cursorThrottle;
+
+    editor.on('cursorActivity', () => {
+      cursorThrottle.call();
     });
 
     return () => {
+      // Cancel all rate-limiters to prevent stale callbacks after unmount
+      if (cursorThrottleRef.current) cursorThrottleRef.current.cancel();
+      if (awarenessThrottleRef.current) awarenessThrottleRef.current.cancel();
+      if (codeChangeDebounceRef.current) {
+        // Flush pending code-change so the latest content is captured
+        codeChangeDebounceRef.current.flush();
+      }
       if (bindingRef.current) { bindingRef.current.destroy(); bindingRef.current = null; }
       if (providerRef.current) { providerRef.current.destroy(); providerRef.current = null; }
       if (editorRef.current) { editorRef.current.toTextArea(); editorRef.current = null; }

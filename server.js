@@ -281,7 +281,26 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ---- Per-socket rate limiter for CODE_CHANGE ----
+  // Prevents a single client from flooding the room with more than
+  // CODE_CHANGE_LIMIT events per second. Events beyond the limit are
+  // silently dropped — the Yjs CRDT layer will converge state anyway.
+  const CODE_CHANGE_LIMIT = 30; // max events per second per socket
+  const CODE_CHANGE_WINDOW = 1000; // window in ms
+  const socketRateState = { count: 0, windowStart: Date.now() };
+
   socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
+    const now = Date.now();
+    if (now - socketRateState.windowStart > CODE_CHANGE_WINDOW) {
+      // Reset the sliding window
+      socketRateState.count = 0;
+      socketRateState.windowStart = now;
+    }
+    socketRateState.count++;
+    if (socketRateState.count > CODE_CHANGE_LIMIT) {
+      // Silently drop — Yjs will handle consistency
+      return;
+    }
     socket.to(roomId).emit(ACTIONS.CODE_CHANGE, { code });
   });
 

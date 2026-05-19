@@ -346,6 +346,10 @@ const EditorPage = () => {
         });
     }, []);
 
+    // handleCodeChange is invoked by the Editor's debounced change handler.
+    // The ref is always updated immediately so downloads/runs get the latest
+    // content; the setState (which triggers a React re-render) arrives at the
+    // debounced cadence set in Editor.js (~300 ms), preventing render storms.
     const handleCodeChange = useCallback((fileId, value) => {
         fileContentsRef.current[fileId] = value;
         setFileContentsSnapshot(prev => ({ ...prev, [fileId]: value }));
