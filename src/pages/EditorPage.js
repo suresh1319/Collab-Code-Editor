@@ -35,8 +35,24 @@ import {
 import VirtualConsole from '../components/VirtualConsole';
 import { useCodeRunner } from '../hooks/useCodeRunner';
 
+const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
+const IMAGE_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp']);
+
+export function isBinary(name = "") {
+    const ext = name.split('.').pop().toLowerCase();
+    return BINARY_EXTS.has(ext);
+}
+
+export function isImage(name = "") {
+    const ext = name.split('.').pop().toLowerCase();
+    return IMAGE_EXTS.has(ext);
+}
+
 function getModeFromFilename(name = "") {
     const ext = name.split(".").pop().toLowerCase();
+    if (IMAGE_EXTS.has(ext)) return "IMAGE";
+    if (BINARY_EXTS.has(ext)) return "BINARY";
+
     const modeMap = {
         js: { name: "javascript", json: false },
         jsx: { name: "javascript", json: false },
@@ -457,10 +473,14 @@ const EditorPage = () => {
     }
 
     // ---- Upload handler ----
-    const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
-    function isBinary(name) {
-        const ext = name.split('.').pop().toLowerCase();
-        return BINARY_EXTS.has(ext);
+
+    async function readFileAsDataURL(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+        });
     }
 
     async function readFileAsText(file) {
@@ -523,8 +543,14 @@ const EditorPage = () => {
             // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
 
-            // Skip content reading for binary files — their node is still created
-            if (isBinary(file.name)) return null;
+            // Handle image vs binary vs text reading
+            if (isImage(file.name)) {
+                const content = await readFileAsDataURL(file);
+                return { fileId, content };
+            }
+            if (isBinary(file.name)) {
+                return null; // Skip content reading for non-image binary files
+            }
             const content = await readFileAsText(file);
             return { fileId, content };
         });

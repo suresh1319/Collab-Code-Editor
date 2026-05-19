@@ -32,9 +32,25 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { CodemirrorBinding } from 'y-codemirror';
 
+const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp','mp4','mp3','woff','woff2','ttf','eot','pdf','zip']);
+const IMAGE_EXTS = new Set(['png','jpg','jpeg','gif','svg','ico','webp']);
+
+function isBinary(name = '') {
+  const ext = name.split('.').pop().toLowerCase();
+  return BINARY_EXTS.has(ext);
+}
+
+function isImage(name = '') {
+  const ext = name.split('.').pop().toLowerCase();
+  return IMAGE_EXTS.has(ext);
+}
+
 // Map file extension → CodeMirror mode
 function getModeFromFilename(name = '') {
   const ext = name.split('.').pop().toLowerCase();
+  if (IMAGE_EXTS.has(ext)) return 'IMAGE';
+  if (BINARY_EXTS.has(ext)) return 'BINARY';
+
   const modeMap = {
     js:   { name: 'javascript', json: false },
     jsx:  { name: 'javascript', json: false },
@@ -99,6 +115,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
 
   // Initialize CodeMirror + Yjs (per fileId)
   useEffect(() => {
+    if (isImage(fileName) || isBinary(fileName)) return;
     if (!textareaRef.current) return;
 
     // Destroy old instances
@@ -232,6 +249,9 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
 
   if (!socketRef.current) return null;
 
+  const modeObj = getModeFromFilename(fileName);
+  const modeLabel = (modeObj?.name || modeObj || 'text').toString().toUpperCase();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="presence-bar">
@@ -241,9 +261,22 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
           </div>
         ))}
         <span className="presence-filename">{fileName}</span>
-        <span className="presence-lang">{(getModeFromFilename(fileName)?.name || getModeFromFilename(fileName) || 'text').toString().toUpperCase()}</span>
+        <span className="presence-lang">{modeLabel}</span>
       </div>
-      <textarea ref={textareaRef} id="realtimeEditor"></textarea>
+      
+      {isImage(fileName) ? (
+        <div className="image-preview" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-editor, #282a36)', overflow: 'auto', padding: '20px' }}>
+            <img src={initialContent} alt={fileName} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: '4px' }} />
+        </div>
+      ) : isBinary(fileName) ? (
+        <div className="editor-empty" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-editor, #282a36)' }}>
+            <div className="editor-empty-inner">
+                <p>Binary file <b>{fileName}</b> cannot be opened in the text editor.</p>
+            </div>
+        </div>
+      ) : (
+        <textarea ref={textareaRef} id="realtimeEditor"></textarea>
+      )}
     </div>
   );
 };
