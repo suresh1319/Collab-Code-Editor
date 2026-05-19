@@ -129,7 +129,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -146,7 +146,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -174,7 +174,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -194,7 +194,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
     }
@@ -203,7 +203,7 @@ io.on('connection', (socket) => {
 
     // Merge nodes into file system in the order provided (folders before files)
     if (!Array.isArray(nodes)) {
-      socket.emit('error', { message: 'Invalid upload payload: nodes must be an array.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid upload payload: nodes must be an array.' });
       reply(false, 'Invalid upload payload: nodes must be an array.');
       return;
     }

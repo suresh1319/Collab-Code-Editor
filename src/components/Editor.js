@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createThrottle, createDebounce } from '../utils/throttle';
 import Codemirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
@@ -68,19 +68,30 @@ function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
 }
 
-// ── Throttle / debounce intervals (ms) ──
-// Cursor broadcasts are throttled so rapid arrow-key / mouse drags don't
-// flood the awareness channel. 50 ms ≈ 20 updates/sec — smooth enough for
-// collaborative cursors while slashing traffic by ~90 % during fast movement.
+// ── Throttle / debounce intervals (ms) ──────────────────────────────────
+//
+// These constants control three independent rate-limiters that sit between
+// the raw editor/awareness events and the work those events trigger.
+// Each value was chosen to balance perceived latency against CPU / network
+// savings:
+//
+//   Cursor broadcasts   — 50 ms  ≈ 20 updates/sec.  Fast enough that
+//                          remote cursors look smooth; slow enough to cut
+//                          outbound WebSocket frames by ~90% during fast
+//                          arrow-key navigation or click-drag selections.
+//
+//   Awareness DOM work  — 80 ms.  Rebuilding bookmark widgets (DOM nodes)
+//                          for every remote cursor micro-update is the most
+//                          expensive main-thread work.  80 ms keeps remote
+//                          cursors visually fluid without layout thrashing.
+//
+//   Code-change state   — 300 ms debounce.  The snapshot (React setState)
+//                          is only used for downloads / "run" — it doesn't
+//                          drive the editing UI.  300 ms of trailing
+//                          debounce eliminates hundreds of redundant renders
+//                          during fast typing with negligible user impact.
 const CURSOR_THROTTLE_MS = 50;
-// Awareness-change DOM updates (bookmark widgets for remote cursors) are
-// expensive. Throttling to 80 ms keeps remote cursors visually fluid
-// without hammering the main thread on every micro-state change.
 const AWARENESS_THROTTLE_MS = 80;
-// The code-change callback writes a React state snapshot used only for
-// downloads. Debouncing at 300 ms means the snapshot trails the actual
-// content by at most 300 ms — imperceptible for downloads, but eliminates
-// hundreds of redundant setState calls during fast typing.
 const CODE_CHANGE_DEBOUNCE_MS = 300;
 
 const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, canWrite, editorTheme, onEditorReady, initialContent }) => {
@@ -268,12 +279,22 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     });
 
     return () => {
-      // Cancel all rate-limiters to prevent stale callbacks after unmount
-      if (cursorThrottleRef.current) cursorThrottleRef.current.cancel();
-      if (awarenessThrottleRef.current) awarenessThrottleRef.current.cancel();
+      // Cancel all rate-limiters to prevent stale callbacks after unmount.
+      // Order matters: flush code-change first (to capture latest content
+      // for downloads), then cancel the others (cursor/awareness have no
+      // meaningful "last value" to preserve).
       if (codeChangeDebounceRef.current) {
         // Flush pending code-change so the latest content is captured
         codeChangeDebounceRef.current.flush();
+        codeChangeDebounceRef.current = null;
+      }
+      if (cursorThrottleRef.current) {
+        cursorThrottleRef.current.cancel();
+        cursorThrottleRef.current = null;
+      }
+      if (awarenessThrottleRef.current) {
+        awarenessThrottleRef.current.cancel();
+        awarenessThrottleRef.current = null;
       }
       if (bindingRef.current) { bindingRef.current.destroy(); bindingRef.current = null; }
       if (providerRef.current) { providerRef.current.destroy(); providerRef.current = null; }
