@@ -12,6 +12,7 @@ import {
     ChevronRight,
     ChevronDown,
 } from 'lucide-react';
+import { getMimeTypeFromFilename } from '../utils/filePreview';
 
 // File icon by extension — returns a Lucide component
 function FileIcon({ name }) {
@@ -52,6 +53,7 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
             name: trimmed,
             type,
             parentId: node.id,
+            ...(type === 'file' ? { mimeType: getMimeTypeFromFilename(trimmed) } : {}),
             ...(type === 'folder' ? { children: [] } : {}),
         };
         onCreateNode(newNode);

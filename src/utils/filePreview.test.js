@@ -1,4 +1,5 @@
 import {
+  decodeDataUrlContent,
   getMimeTypeFromFilename,
   isBinaryFileName,
   isImageMimeType,
@@ -28,6 +29,16 @@ describe('filePreview helpers', () => {
       mimeType: 'image/png',
       isBase64: true,
       data: 'QUJD',
+    });
+  });
+
+  test('decodes non-base64 svg data urls', () => {
+    expect(
+      decodeDataUrlContent('data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%201%201%22%3E%3C%2Fsvg%3E')
+    ).toEqual({
+      mimeType: 'image/svg+xml',
+      content: '<svg viewBox="0 0 1 1"></svg>',
+      isBase64: false,
     });
   });
 });

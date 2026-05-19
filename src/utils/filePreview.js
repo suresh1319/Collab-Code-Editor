@@ -53,3 +53,22 @@ export function parseDataUrl(value = '') {
     data: match[3],
   };
 }
+
+export function decodeDataUrlContent(value = '') {
+  const parsed = parseDataUrl(value);
+  if (!parsed) return null;
+
+  if (parsed.isBase64) {
+    return {
+      mimeType: parsed.mimeType,
+      content: parsed.data,
+      isBase64: true,
+    };
+  }
+
+  return {
+    mimeType: parsed.mimeType,
+    content: decodeURIComponent(parsed.data),
+    isBase64: false,
+  };
+}

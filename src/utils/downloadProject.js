@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { parseDataUrl } from './filePreview';
+import { decodeDataUrlContent } from './filePreview';
 
 /**
  * Build the full path for a node by traversing parentId chain
@@ -30,10 +30,15 @@ function addToZip(zip, fileSystem, nodeId, editorContents) {
   } else {
     const filePath = getNodePath(fileSystem, nodeId);
     const content = editorContents[nodeId] || '';
-    const parsed = parseDataUrl(content);
+    const decoded = decodeDataUrlContent(content);
 
-    if (parsed?.isBase64) {
-      zip.file(filePath, parsed.data, { base64: true });
+    if (decoded?.isBase64) {
+      zip.file(filePath, decoded.content, { base64: true });
+      return;
+    }
+
+    if (decoded) {
+      zip.file(filePath, decoded.content);
       return;
     }
 
