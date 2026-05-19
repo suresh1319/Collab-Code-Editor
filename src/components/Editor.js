@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createThrottle, createDebounce } from '../utils/throttle';
 import Codemirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';

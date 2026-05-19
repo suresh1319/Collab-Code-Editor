@@ -203,7 +203,7 @@ io.on('connection', (socket) => {
 
     // Merge nodes into file system in the order provided (folders before files)
     if (!Array.isArray(nodes)) {
-      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid upload payload: nodes must be an array.' });
+      socket.emit(ACTIONS.INVALID_PAYLOAD, { message: 'Invalid upload payload: nodes must be an array.' });
       reply(false, 'Invalid upload payload: nodes must be an array.');
       return;
     }
@@ -281,26 +281,29 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ---- Per-socket rate limiter for CODE_CHANGE ----
+  // ---- Per-socket sliding-window rate limiter for CODE_CHANGE ----
   // Prevents a single client from flooding the room with more than
-  // CODE_CHANGE_LIMIT events per second. Events beyond the limit are
-  // silently dropped — the Yjs CRDT layer will converge state anyway.
-  const CODE_CHANGE_LIMIT = 30; // max events per second per socket
-  const CODE_CHANGE_WINDOW = 1000; // window in ms
-  const socketRateState = { count: 0, windowStart: Date.now() };
+  // CODE_CHANGE_LIMIT events within any rolling CODE_CHANGE_WINDOW ms.
+  // Uses a true sliding window (timestamp queue) instead of a fixed window
+  // to avoid the boundary-burst problem where a fixed window allows up to
+  // 2× the limit when events straddle two adjacent windows.
+  // Events beyond the limit are silently dropped — the Yjs CRDT layer will
+  // converge state anyway.
+  const CODE_CHANGE_LIMIT = 30; // max events per rolling window per socket
+  const CODE_CHANGE_WINDOW = 1000; // rolling window size in ms
+  const socketRateTimestamps = []; // circular buffer of recent event timestamps
 
   socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
     const now = Date.now();
-    if (now - socketRateState.windowStart > CODE_CHANGE_WINDOW) {
-      // Reset the sliding window
-      socketRateState.count = 0;
-      socketRateState.windowStart = now;
+    // Evict timestamps that have slid out of the window
+    while (socketRateTimestamps.length > 0 && now - socketRateTimestamps[0] > CODE_CHANGE_WINDOW) {
+      socketRateTimestamps.shift();
     }
-    socketRateState.count++;
-    if (socketRateState.count > CODE_CHANGE_LIMIT) {
+    if (socketRateTimestamps.length >= CODE_CHANGE_LIMIT) {
       // Silently drop — Yjs will handle consistency
       return;
     }
+    socketRateTimestamps.push(now);
     socket.to(roomId).emit(ACTIONS.CODE_CHANGE, { code });
   });
 

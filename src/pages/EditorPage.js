@@ -238,6 +238,20 @@ const EditorPage = () => {
                 toast.error(message);
             });
 
+            // Show a warning toast when the server rejects a request due to
+            // a malformed payload (e.g. missing required fields).  Distinct
+            // from PERMISSION_DENIED so client code can tell auth failures
+            // apart from input-validation failures.
+            socketRef.current.on(ACTIONS.INVALID_PAYLOAD, (payload) => {
+                const message =
+                    typeof payload === 'string'
+                        ? payload
+                        : payload && typeof payload === 'object' && 'message' in payload
+                            ? payload.message
+                            : 'Invalid request.';
+                toast.error(message);
+            });
+
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 if (fileContents && typeof fileContents === 'object') {
@@ -304,6 +318,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
                 socketRef.current.off(ACTIONS.PERMISSION_DENIED);
+                socketRef.current.off(ACTIONS.INVALID_PAYLOAD);
             }
         };
     }, []);

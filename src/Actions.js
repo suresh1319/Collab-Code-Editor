@@ -22,6 +22,10 @@ const ACTIONS = {
     // Uses a dedicated event name instead of Socket.IO's reserved 'error'
     // which may fire with different payload shapes from the transport layer.
     PERMISSION_DENIED: 'permission_denied',
+    // Server → client: malformed or invalid request payload.
+    // Semantically distinct from PERMISSION_DENIED — this signals a client
+    // bug (bad data shape) rather than an authorization failure.
+    INVALID_PAYLOAD: 'invalid_payload',
 };
 
 module.exports = ACTIONS;
