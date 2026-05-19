@@ -66,9 +66,16 @@ export function decodeDataUrlContent(value = '') {
     };
   }
 
+  let content = parsed.data;
+  try {
+    content = decodeURIComponent(parsed.data);
+  } catch {
+    content = parsed.data;
+  }
+
   return {
     mimeType: parsed.mimeType,
-    content: decodeURIComponent(parsed.data),
+    content,
     isBase64: false,
   };
 }

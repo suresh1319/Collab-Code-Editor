@@ -41,4 +41,12 @@ describe('filePreview helpers', () => {
       isBase64: false,
     });
   });
+
+  test('falls back gracefully on malformed non-base64 data urls', () => {
+    expect(decodeDataUrlContent('data:image/svg+xml,%E0%A4%A')).toEqual({
+      mimeType: 'image/svg+xml',
+      content: '%E0%A4%A',
+      isBase64: false,
+    });
+  });
 });
