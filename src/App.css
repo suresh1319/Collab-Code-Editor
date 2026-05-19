@@ -2315,6 +2315,12 @@ body[data-theme='light'] .console-separator::after {
     display: none;
   }
 
+  .side-panel.side-panel--mobile .panel-header-actions {
+    display: flex;
+    width: 100%;
+  }
+  }
+
   .CodeMirror,
   .CodeMirror-scroll {
     flex: 1 1 auto;
