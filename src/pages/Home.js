@@ -53,6 +53,13 @@ const Home = () => {
         {theme === 'light' ? '🌙' : '☀️'}
       </button>
       <div className="formWrapper">
+        <button
+          type="button"
+          className="backHomeBtn"
+          onClick={() => navigate('/')}
+        >
+          ← Back to Home
+        </button>
         <div className="home-logo-text">
           <span className="logo-collab">Collab</span><span className="logo-ce">CE</span>
         </div>
