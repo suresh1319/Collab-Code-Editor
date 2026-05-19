@@ -43,6 +43,24 @@
   transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
+.backHomeBtn {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: #4aed88;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 18px;
+  padding: 0;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.backHomeBtn:hover {
+  color: #2b824c;
+  transform: translateX(-2px);
+}
+
 .inputGroup {
   display: flex;
   flex-direction: column;
