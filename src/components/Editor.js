@@ -272,9 +272,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
           </div>
         ))}
         <span className="presence-filename">{fileName}</span>
-<span className="presence-lang" title={getLanguageLabel(fileName)}>
-  {getLanguageLabel(fileName)}
-</span>
+        {(() => { const lang = getLanguageLabel(fileName); return <span className="presence-lang" title={lang}>{lang}</span>; })()}
       </div>
       
       {isImage(fileName) ? (
