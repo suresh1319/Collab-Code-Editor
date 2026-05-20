@@ -1806,7 +1806,7 @@ body[data-theme='light'] .console-separator::after {
   justify-content: center;
   background: rgba(74, 237, 136, 0.1);
   color: #4aed88;
-  margin-bottom: 22px;
+  margin: 0 auto 22px;
 }
 
 .feature-card h3 {
@@ -1817,6 +1817,8 @@ body[data-theme='light'] .console-separator::after {
 .feature-card p {
   opacity: 0.72;
   line-height: 1.7;
+  max-width: 28ch;
+  margin-inline: auto;
 }
 
 /* Steps */
@@ -1865,6 +1867,8 @@ body[data-theme='light'] .console-separator::after {
 .step-card p {
   opacity: 0.72;
   line-height: 1.7;
+  max-width: 28ch;
+  margin-inline: auto;
 }
 
 /* CTA */
