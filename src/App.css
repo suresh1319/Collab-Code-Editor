@@ -1777,6 +1777,7 @@ body[data-theme='light'] .console-separator::after {
 }
 
 .feature-card {
+  text-align: center;
   background: var(--aside-bg);
   border: 1px solid var(--border-color);
   border-radius: 18px;
@@ -1795,6 +1796,8 @@ body[data-theme='light'] .console-separator::after {
 }
 
 .feature-icon {
+  margin-left: auto;
+  margin-right: auto;
   width: 58px;
   height: 58px;
   border-radius: 14px;
