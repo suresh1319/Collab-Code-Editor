@@ -306,11 +306,16 @@ const EditorPage = () => {
 
     const confirmDeleteNode = useCallback(() => {
         if (!pendingDeleteNode) return;
+        if (!canWrite) {
+            toast.error('You do not have write permission.');
+            setPendingDeleteNode(null);
+            return;
+        }
         // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
         // to confirm the deletion, preventing stale UI if the server rejects.
         socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId: pendingDeleteNode.id });
         setPendingDeleteNode(null);
-    }, [pendingDeleteNode, roomId]);
+    }, [pendingDeleteNode, roomId, canWrite]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
