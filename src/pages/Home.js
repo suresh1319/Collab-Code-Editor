@@ -100,7 +100,7 @@ const Home = () => {
           </div>
         </div>
       </div>
-      <SiteFooter />
+      <SiteFooter showJoinLink={false} />
     </div>
   );
 };

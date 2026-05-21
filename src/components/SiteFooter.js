@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-function SiteFooter() {
+function SiteFooter({ showJoinLink = true }) {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
@@ -16,7 +16,7 @@ function SiteFooter() {
 
         <nav className="site-footer-nav" aria-label="Footer">
           <Link to="/">Home</Link>
-          <Link to="/join">Join Room</Link>
+          {showJoinLink ? <Link to="/join">Join Room</Link> : null}
           <a
             href="https://github.com/suresh1319/Collab-Code-Editor"
             target="_blank"
