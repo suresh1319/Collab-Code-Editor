@@ -41,6 +41,7 @@ const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
+    const [pendingDeleteNode, setPendingDeleteNode] = useState(null);
     const [showLeaveModal, setShowLeaveModal] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
@@ -298,12 +299,18 @@ const EditorPage = () => {
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
     }, [roomId, canWrite]);
 
-    const handleDeleteNode = useCallback((nodeId) => {
+    const handleDeleteNode = useCallback((node) => {
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
+        setPendingDeleteNode(node);
+    }, [canWrite]);
+
+    const confirmDeleteNode = useCallback(() => {
+        if (!pendingDeleteNode) return;
         // Do NOT optimistically close the tab — wait for the FS_SYNC broadcast
         // to confirm the deletion, preventing stale UI if the server rejects.
-        socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId });
-    }, [roomId, canWrite]);
+        socketRef.current?.emit(ACTIONS.FS_DELETE_NODE, { roomId, nodeId: pendingDeleteNode.id });
+        setPendingDeleteNode(null);
+    }, [pendingDeleteNode, roomId]);
 
     const handleRenameNode = useCallback((nodeId, newName) => {
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
@@ -861,12 +868,30 @@ const EditorPage = () => {
                     title="Confirm Download"
                     message="Do you want to download this project?"
                     onConfirm={handleDownload}
+                    confirmText="Download"
+                    submittingText="Downloading..."
+                    variant="download"
                     onClose={() => {
                         setShowConfirmDownload(false);
                         setActivePanel(lastPersistentPanel);
                     }}
                 />
             )}
+
+            <ConfirmModal
+                isOpen={Boolean(pendingDeleteNode)}
+                title={`Delete ${pendingDeleteNode?.type === 'folder' ? 'Folder' : 'File'}?`}
+                message={
+                    pendingDeleteNode
+                        ? `Are you sure you want to delete "${pendingDeleteNode.name}"? This change will be shared with everyone in the room.`
+                        : ''
+                }
+                onConfirm={confirmDeleteNode}
+                confirmText="Delete"
+                submittingText="Deleting..."
+                variant="delete"
+                onClose={() => setPendingDeleteNode(null)}
+            />
 
             {/* Hidden file inputs for upload */}
             <input

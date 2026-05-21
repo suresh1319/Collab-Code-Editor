@@ -1,9 +1,26 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Download, X } from 'lucide-react';
+import { AlertTriangle, Download, Trash2, X } from 'lucide-react';
 
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+const MODAL_ICONS = {
+    delete: Trash2,
+    warning: AlertTriangle,
+    download: Download,
+};
+
+const ConfirmModal = ({
+    isOpen,
+    onClose,
+    onConfirm,
+    title,
+    message,
+    confirmText = 'Confirm',
+    submittingText = 'Processing...',
+    variant = 'download',
+}) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isSubmittingRef = useRef(isSubmitting);
+    const TitleIcon = MODAL_ICONS[variant] || Download;
+    const iconColor = variant === 'delete' ? '#ff6b6b' : variant === 'warning' ? '#f59e0b' : '#4aed88';
 
     // Sync the isSubmitting state to a ref to prevent stale closures in the keydown handler
     useEffect(() => {
@@ -52,7 +69,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
             <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px' }}>
                 <div className="modal-header">
                     <h3 className="modal-title">
-                        <Download size={18} className="modal-title-icon" style={{ color: '#4aed88' }} />
+                        <TitleIcon size={18} className="modal-title-icon" style={{ color: iconColor }} />
                         {title || 'Confirm Download'}
                     </h3>
                     <button 
@@ -95,12 +112,13 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
                             padding: '9px 16px',
                             fontSize: '14px',
                             opacity: isSubmitting ? 0.7 : 1,
-                            cursor: isSubmitting ? 'not-allowed' : 'pointer'
+                            cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                            background: variant === 'delete' ? '#ff5555' : undefined,
                         }}
                         onClick={handleConfirm}
                         disabled={isSubmitting}
                     >
-                        {isSubmitting ? 'Processing...' : 'Download'}
+                        {isSubmitting ? submittingText : confirmText}
                     </button>
                 </div>
             </div>

@@ -115,7 +115,7 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
                                 <button title="Rename" onClick={() => { setRenaming(true); setRenameVal(node.name); }}>
                                     <Pencil size={13} />
                                 </button>
-                                <button title="Delete" onClick={() => onDeleteNode(node.id)}>
+                                <button title="Delete" onClick={() => onDeleteNode(node)}>
                                     <Trash2 size={13} />
                                 </button>
                             </>
