@@ -30,6 +30,14 @@ const LandingPage = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  const scrollToSection = (sectionId) => {
+    const section = document.getElementById(sectionId);
+
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   useEffect(() => {
     const roomId = searchParams.get('roomId');
 
@@ -47,21 +55,38 @@ const LandingPage = () => {
           <span className="logo-ce">CE</span>
         </div>
 
-        <div className="landing-nav-actions">
-          <button
-            className="landing-outline-btn"
-            onClick={toggleTheme}
-          >
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-            {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
-          </button>
+        <div className="landing-nav-content">
+          <div className="landing-nav-links">
+            <button
+              className="landing-nav-link"
+              onClick={() => scrollToSection('features')}
+            >
+              Features
+            </button>
+            <button
+              className="landing-nav-link"
+              onClick={() => scrollToSection('how-it-works')}
+            >
+              How It Works
+            </button>
+          </div>
 
-          <button
-            className="landing-primary-btn"
-            onClick={() => navigate('/join')}
-          >
-            Get Started
-          </button>
+          <div className="landing-nav-actions">
+            <button
+              className="landing-outline-btn"
+              onClick={toggleTheme}
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+              {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+            </button>
+
+            <button
+              className="landing-primary-btn"
+              onClick={() => navigate('/join')}
+            >
+              Get Started
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -103,7 +128,10 @@ const LandingPage = () => {
       </section>
 
       {/* Features */}
-      <section className="landing-section">
+      <section
+        className="landing-section"
+        id="features"
+      >
         <div className="section-header">
           <h2>Features</h2>
           <p>Everything needed for collaborative development workflows.</p>
@@ -146,7 +174,10 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works */}
-      <section className="landing-section">
+      <section
+        className="landing-section"
+        id="how-it-works"
+      >
         <div className="section-header">
           <h2>How It Works</h2>
           <p>Start collaborating in just a few simple steps.</p>
@@ -154,19 +185,28 @@ const LandingPage = () => {
 
         <div className="steps-grid">
           <div className="step-card">
-            <div className="step-number">1</div>
+            <div className="step-card-header">
+              <div className="step-number">1</div>
+              <span className="step-label">Step 1</span>
+            </div>
             <h3>Create a Room</h3>
             <p>Generate a collaboration room instantly with a unique ID.</p>
           </div>
 
           <div className="step-card">
-            <div className="step-number">2</div>
+            <div className="step-card-header">
+              <div className="step-number">2</div>
+              <span className="step-label">Step 2</span>
+            </div>
             <h3>Invite Your Team</h3>
             <p>Share the room link and bring your collaborators together.</p>
           </div>
 
           <div className="step-card">
-            <div className="step-number">3</div>
+            <div className="step-card-header">
+              <div className="step-number">3</div>
+              <span className="step-label">Step 3</span>
+            </div>
             <h3>Code in Real-Time</h3>
             <p>Write, edit, and manage projects together seamlessly.</p>
           </div>
