@@ -192,9 +192,11 @@ io.on('connection', (socket) => {
     const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
 
     if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
-    // Server-side permission check — reject read-only users
+    // Server-side permission check — reject read-only users.
+    // Only reply via the ack callback (not a separate socket.emit) so the
+    // client receives exactly one error signal per failure — the ack handler
+    // in EditorPage.js already shows an error toast.
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
     }
@@ -202,8 +204,10 @@ io.on('connection', (socket) => {
     const fs = roomState[roomId].fileSystem;
 
     // Merge nodes into file system in the order provided (folders before files)
+    // Only reply via the ack callback — do NOT also emit INVALID_PAYLOAD,
+    // because the client's ack callback already shows an error toast and
+    // emitting both would cause a double-toast UX regression.
     if (!Array.isArray(nodes)) {
-      socket.emit(ACTIONS.INVALID_PAYLOAD, { message: 'Invalid upload payload: nodes must be an array.' });
       reply(false, 'Invalid upload payload: nodes must be an array.');
       return;
     }
