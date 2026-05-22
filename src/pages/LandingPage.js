@@ -9,6 +9,9 @@ import {
   Sparkles,
   Sun,
   Moon,
+  Activity,
+  TimerReset,
+  GitBranch,
 } from 'lucide-react';
 
 const LandingPage = () => {
@@ -37,6 +40,19 @@ const LandingPage = () => {
       navigate(`/join?roomId=${roomId}`);
     }
   }, [navigate, searchParams]);
+
+  const heroStats = [
+    { label: 'Live cursors', value: '08', icon: <Users size={16} /> },
+    { label: 'File sync', value: '<120ms', icon: <Activity size={16} /> },
+    { label: 'Shared branches', value: '24', icon: <GitBranch size={16} /> },
+  ];
+
+  const heroSignals = [
+    'Pair programming',
+    'Review flow',
+    'Live presence',
+    'Multi-file workspaces',
+  ];
 
   return (
     <div className="landing-page">
@@ -67,38 +83,100 @@ const LandingPage = () => {
 
       {/* Hero Section */}
       <section className="landing-hero">
-        <div className="landing-badge">
-          <Sparkles size={14} />
-          Real-Time Collaborative Coding
+        <div className="landing-hero-copy">
+          <div className="landing-badge">
+            <Sparkles size={14} />
+            Real-Time Collaborative Coding
+          </div>
+
+          <h1 className="landing-title">
+            Code Together.
+            <br />
+            Ship With Momentum.
+          </h1>
+
+          <p className="landing-subtitle">
+            CollabCE is a modern collaborative code editor that lets developers
+            spin up rooms, co-edit files in real time, and keep teams aligned
+            without losing flow.
+          </p>
+
+          <div className="landing-hero-buttons">
+            <button
+              className="landing-primary-btn hero-btn"
+              onClick={() => navigate('/join')}
+            >
+              Start Collaborating
+              <ArrowRight size={17} />
+            </button>
+
+            <button
+              className="landing-outline-btn hero-btn"
+              onClick={() => window.open('https://github.com/suresh1319/Collab-Code-Editor', '_blank')}
+            >
+              View Repository
+            </button>
+          </div>
+
+          <div className="landing-signal-row">
+            {heroSignals.map((signal) => (
+              <span key={signal} className="landing-signal-pill">
+                {signal}
+              </span>
+            ))}
+          </div>
         </div>
 
-        <h1 className="landing-title">
-          Code Together.
-          <br />
-          Build Faster.
-        </h1>
+        <div className="landing-hero-visual" aria-hidden="true">
+          <div className="hero-visual-glow hero-visual-glow-one" />
+          <div className="hero-visual-glow hero-visual-glow-two" />
 
-        <p className="landing-subtitle">
-          CollabCE is a modern collaborative code editor that lets developers
-          create rooms, edit files in real-time, manage permissions, and work
-          seamlessly with teams.
-        </p>
+          <div className="hero-canvas-card">
+            <div className="hero-canvas-header">
+              <div className="hero-canvas-dots">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="hero-canvas-status">
+                <TimerReset size={14} />
+                Room synced
+              </div>
+            </div>
 
-        <div className="landing-hero-buttons">
-          <button
-            className="landing-primary-btn hero-btn"
-            onClick={() => navigate('/join')}
-          >
-            Start Collaborating
-            <ArrowRight size={17} />
-          </button>
+            <div className="hero-canvas-body">
+              <div className="hero-code-column">
+                <div className="hero-code-line line-strong" />
+                <div className="hero-code-line line-medium" />
+                <div className="hero-code-line line-short" />
+                <div className="hero-code-line line-medium accent" />
+                <div className="hero-code-line line-strong" />
+              </div>
 
-          <button
-            className="landing-outline-btn hero-btn"
-            onClick={() => window.open('https://github.com/suresh1319/Collab-Code-Editor', '_blank')}
-          >
-            View Repository
-          </button>
+              <div className="hero-presence-panel">
+                <div className="hero-presence-title">Active room</div>
+                {heroStats.map((item) => (
+                  <div key={item.label} className="hero-presence-item">
+                    <span className="hero-presence-label">
+                      {item.icon}
+                      {item.label}
+                    </span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="hero-floating-card hero-floating-card-top">
+            <span className="hero-floating-kicker">Presence</span>
+            <strong>4 teammates editing</strong>
+          </div>
+
+          <div className="hero-floating-card hero-floating-card-bottom">
+            <span className="hero-floating-kicker">Permissions</span>
+            <strong>Reviewer lock active</strong>
+          </div>
         </div>
       </section>
 
