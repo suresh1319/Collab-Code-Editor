@@ -143,10 +143,11 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
         });
       }
     };
+    if (!provider) return;
+
     provider.on('sync', handleSync);
 
     // Cursor awareness
-    if (!provider) return;
 
     const awareness = provider.awareness;
     const myColor = getColor(awareness.clientID);
