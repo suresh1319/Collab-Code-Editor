@@ -335,6 +335,9 @@ const EditorPage = () => {
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
+                socketRef.current.off('connect');
+                socketRef.current.off('connect_error');
+                socketRef.current.off('connect_failed');
                 socketRef.current.off(ACTIONS.JOINED);
                 socketRef.current.off(ACTIONS.DISCONNECTED);
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
