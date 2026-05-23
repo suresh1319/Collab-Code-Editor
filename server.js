@@ -64,6 +64,12 @@ const roomState = {};
 const roomCleanupTimers = {};
 const ROOM_CLEANUP_DELAY_MS = 60000;
 
+// Delayed admin transfer to prevent privilege loss on page refresh.
+// When the admin refreshes, their socket disconnects before the new one connects.
+// A grace period allows them to rejoin and reclaim admin before transfer occurs.
+const adminTransferTimers = {};
+const ADMIN_TRANSFER_DELAY_MS = 10000;
+
 // ---- Permission helper ----
 // Returns true if socket is the room admin OR has been granted write access.
 function canWriteToRoom(socket, roomId) {
@@ -103,6 +109,12 @@ io.on('connection', (socket) => {
       delete roomCleanupTimers[roomId];
     }
 
+    // If there was a pending admin transfer (e.g. admin refreshed), cancel it.
+    if (adminTransferTimers[roomId]) {
+      clearTimeout(adminTransferTimers[roomId]);
+      delete adminTransferTimers[roomId];
+    }
+
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
@@ -111,10 +123,16 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) {
       roomState[roomId] = {
         admin: socket.id,
+        adminUserName: userName, // persistent admin identity (survives reconnects)
         permissions: {},
         fileSystem: createDefaultFileSystem(),
         fileContents: {}, // stores uploaded file contents keyed by fileId
       };
+    } else if (roomState[roomId].adminUserName === userName) {
+      // The original admin is reconnecting (e.g. after a page refresh).
+      // Reclaim admin ownership on the new socket.
+      roomState[roomId].admin = socket.id;
+      roomState[roomId].permissions[socket.id] = true;
     }
 
     // Default permission
@@ -304,12 +322,34 @@ io.on('connection', (socket) => {
       if (roomState[roomId] && roomState[roomId].admin === socket.id) {
         const clientsInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);
         if (clientsInRoom.length > 0) {
-          roomState[roomId].admin = clientsInRoom[0];
-          roomState[roomId].permissions[clientsInRoom[0]] = true;
+          // Don't transfer admin immediately — the admin may be refreshing.
+          // Use a grace period so they can rejoin and reclaim ownership.
+          if (!adminTransferTimers[roomId]) {
+            adminTransferTimers[roomId] = setTimeout(() => {
+              delete adminTransferTimers[roomId];
+              if (!roomState[roomId]) return;
+              // Only transfer if admin socket is still disconnected
+              const currentRoom = io.sockets.adapter.rooms.get(roomId);
+              if (currentRoom && currentRoom.has(roomState[roomId].admin)) return;
+              // Transfer admin to the first remaining connected client
+              const remaining = Array.from(currentRoom || []);
+              if (remaining.length > 0) {
+                roomState[roomId].admin = remaining[0];
+                roomState[roomId].adminUserName = userSocketMap[remaining[0]];
+                roomState[roomId].permissions[remaining[0]] = true;
+                const clients = getAllConnectedClients(roomId);
+                io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+              }
+            }, ADMIN_TRANSFER_DELAY_MS);
+          }
         } else {
           roomCleanupTimers[roomId] = setTimeout(() => {
             delete roomState[roomId];
             delete roomCleanupTimers[roomId];
+            if (adminTransferTimers[roomId]) {
+              clearTimeout(adminTransferTimers[roomId]);
+              delete adminTransferTimers[roomId];
+            }
           }, ROOM_CLEANUP_DELAY_MS);
         }
       }

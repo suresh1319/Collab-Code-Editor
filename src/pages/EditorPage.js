@@ -113,6 +113,18 @@ const EditorPage = () => {
     const { roomId } = useParams();
     const reactNavigator = useNavigate();
 
+    // Resolve userName: prefer location.state (fresh navigation), fall back to
+    // sessionStorage (page reload).  Persist so reloads always have a userName.
+    const userName = React.useMemo(() => {
+        const fromState = location.state?.userName;
+        const storageKey = `collabce_user_${roomId}`;
+        if (fromState) {
+            try { sessionStorage.setItem(storageKey, fromState); } catch (_) { /* quota */ }
+            return fromState;
+        }
+        try { return sessionStorage.getItem(storageKey) || ''; } catch (_) { return ''; }
+    }, [location.state, roomId]);
+
     const [clients, setClients] = useState([]);
     const [socketReady, setSocketReady] = useState(false);
     const [canWrite, setCanWrite] = useState(false);
@@ -147,7 +159,7 @@ const EditorPage = () => {
                 setSocketReady(true);
                 socketRef.current.emit(ACTIONS.JOIN, {
                     roomId,
-                    userName: location.state?.userName,
+                    userName,
                 });
             });
 
@@ -156,9 +168,9 @@ const EditorPage = () => {
                 if (me) { setCanWrite(me.canWrite); setIsAdmin(me.isAdmin); }
             };
 
-            socketRef.current.on(ACTIONS.JOINED, ({ clients, userName, socketId }) => {
-                if (userName !== location.state?.userName && socketId !== socketRef.current.id) {
-                    toast.success(`${userName} joined the room.`);
+            socketRef.current.on(ACTIONS.JOINED, ({ clients, userName: joinedUserName, socketId }) => {
+                if (joinedUserName !== userName && socketId !== socketRef.current.id) {
+                    toast.success(`${joinedUserName} joined the room.`);
                 }
                 setClients(clients);
                 updateLocalPermissions(clients);
@@ -410,7 +422,7 @@ const EditorPage = () => {
     function requestWriteAccess() {
         const message = prompt('Enter a message for the admin:');
         if (message) {
-            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
+            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName });
             toast.success('Request sent to admin!');
         }
     }
@@ -561,7 +573,7 @@ const EditorPage = () => {
         setActivePanel(lastPersistentPanel);
     }
 
-    if (!location.state) return <Navigate to="/" />;
+    if (!userName) return <Navigate to="/" />;
 
     const activeFile = activeFileId ? fileSystem[activeFileId] : null;
 
@@ -804,7 +816,7 @@ const EditorPage = () => {
                                 fileName={activeFile.name}
                                 onCodeChange={handleCodeChange}
                                 onEditorReady={handleEditorReady}
-                                userName={location.state?.userName}
+                                userName={userName}
                                 canWrite={canWrite}
                                 editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
                                 initialContent={initialContentsRef.current[activeFileId] || ''}
