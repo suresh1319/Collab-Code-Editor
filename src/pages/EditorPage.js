@@ -118,7 +118,7 @@ const EditorPage = () => {
 
     const [clients, setClients] = useState([]);
     const [socketReady, setSocketReady] = useState(false);
-    const [canWrite, setCanWrite] = useState(true);
+    const [canWrite, setCanWrite] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
 
     // File system state
