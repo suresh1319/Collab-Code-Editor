@@ -144,9 +144,7 @@ const EditorPage = () => {
                 console.warn('Socket reconnecting...', e);
 
                 setSocketReady(false);
-
-                // Do NOT redirect user
-                // Allow reconnect attempts
+                setCanWrite(false);
             }
 
             socketRef.current.on('connect', () => {
