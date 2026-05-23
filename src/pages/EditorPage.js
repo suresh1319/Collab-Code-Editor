@@ -165,8 +165,8 @@ const EditorPage = () => {
             adminTokenRef.current = sessionStorage.getItem(`collabce_adminToken_${roomId}`) || null;
         } catch (_) { adminTokenRef.current = null; }
 
-        const init = async () => {
-            socketRef.current = await initSocket();
+        const init = () => {
+            socketRef.current = initSocket();
             socketRef.current.on('connect_error', handleErrors);
             socketRef.current.on('connect_failed', handleErrors);
 
