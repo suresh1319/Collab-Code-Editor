@@ -124,8 +124,7 @@ io.on('connection', (socket) => {
       roomState[roomId].permissions[socket.id] = false;
     }
 
-    let clients = getAllConnectedClients(roomId);
-    clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+    const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
     // Send current file system AND any stored file contents in one atomic emit.
@@ -252,8 +251,7 @@ io.on('connection', (socket) => {
   socket.on(ACTIONS.TOGGLE_PERMISSION, ({ roomId, targetSocketId, canWrite }) => {
     if (roomState[roomId] && roomState[roomId].admin === socket.id) {
       roomState[roomId].permissions[targetSocketId] = canWrite;
-      let clients = getAllConnectedClients(roomId);
-      clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+      const clients = getAllConnectedClients(roomId);
       io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
     }
   });
@@ -274,8 +272,7 @@ io.on('connection', (socket) => {
 
     roomState[roomId].permissions[requesterSocketId] = true;
 
-    let clients = getAllConnectedClients(roomId);
-    clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+    const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
 
     io.to(requesterSocketId).emit(ACTIONS.APPROVE_CODE_EDIT, {
@@ -323,8 +320,7 @@ io.on('connection', (socket) => {
       });
 
       if (roomState[roomId]) {
-        let clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
-        clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+        const clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
         socket.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
       }
     });

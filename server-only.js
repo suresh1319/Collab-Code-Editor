@@ -55,8 +55,7 @@ io.on('connection', (socket) => {
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
-    let clients = getAllConnectedClients(roomId);
-    clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+    const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
   });
 
