@@ -143,7 +143,18 @@ const EditorPage = () => {
     const uploadFileInputRef = useRef(null);
     const uploadFolderInputRef = useRef(null);
 
+    // Secure admin ownership token — received from the server, never derived from user input.
+    // Persisted in sessionStorage so it survives page reloads within the same browser session.
+    const adminTokenRef = useRef(() => {
+        try { return sessionStorage.getItem(`collabce_adminToken_${roomId}`) || null; } catch (_) { return null; }
+    });
+
     useEffect(() => {
+        // Resolve admin token from sessionStorage on mount (survives page reloads)
+        try {
+            adminTokenRef.current = sessionStorage.getItem(`collabce_adminToken_${roomId}`) || null;
+        } catch (_) { adminTokenRef.current = null; }
+
         const init = async () => {
             socketRef.current = await initSocket();
             socketRef.current.on('connect_error', handleErrors);
@@ -160,7 +171,15 @@ const EditorPage = () => {
                 socketRef.current.emit(ACTIONS.JOIN, {
                     roomId,
                     userName,
+                    adminToken: adminTokenRef.current,
                 });
+            });
+
+            // Listen for the server-issued admin ownership token.
+            // This fires only for the admin — on room creation, reconnect, or admin transfer.
+            socketRef.current.on(ACTIONS.ADMIN_TOKEN, ({ adminToken }) => {
+                adminTokenRef.current = adminToken;
+                try { sessionStorage.setItem(`collabce_adminToken_${roomId}`, adminToken); } catch (_) { /* quota */ }
             });
 
             const updateLocalPermissions = (updatedClients) => {
@@ -298,6 +317,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
                 socketRef.current.off(ACTIONS.PERMISSION_DENIED);
+                socketRef.current.off(ACTIONS.ADMIN_TOKEN);
             }
         };
     }, []);

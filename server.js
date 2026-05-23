@@ -102,38 +102,45 @@ function getAllConnectedClients(roomId) {
 }
 
 io.on('connection', (socket) => {
-  socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
+  socket.on(ACTIONS.JOIN, ({ roomId, userName, adminToken }) => {
     // If there was a pending cleanup for this room (e.g. after a refresh), cancel it.
     if (roomCleanupTimers[roomId]) {
       clearTimeout(roomCleanupTimers[roomId]);
       delete roomCleanupTimers[roomId];
     }
 
-    // If there was a pending admin transfer (e.g. admin refreshed), cancel it.
-    if (adminTransferTimers[roomId]) {
-      clearTimeout(adminTransferTimers[roomId]);
-      delete adminTransferTimers[roomId];
-    }
-
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
 
-    // Initialize room state if it doesn't exist
+    // Initialize room state if it doesn't exist (first user = room creator = admin)
     if (!roomState[roomId]) {
+      const token = uuid(); // crypto.randomUUID() — secure, unguessable
       roomState[roomId] = {
         admin: socket.id,
-        adminUserName: userName, // persistent admin identity (survives reconnects)
+        adminToken: token,
         permissions: {},
         fileSystem: createDefaultFileSystem(),
         fileContents: {}, // stores uploaded file contents keyed by fileId
       };
-    } else if (roomState[roomId].adminUserName === userName) {
-      // The original admin is reconnecting (e.g. after a page refresh).
-      // Reclaim admin ownership on the new socket.
+      // Send the ownership token ONLY to the admin socket.
+      // No other client ever receives this value.
+      socket.emit(ACTIONS.ADMIN_TOKEN, { adminToken: token });
+    } else if (adminToken && adminToken === roomState[roomId].adminToken) {
+      // The legitimate admin is reconnecting (e.g. after a page refresh).
+      // The client-provided token matches the server-stored token — reclaim admin.
       roomState[roomId].admin = socket.id;
       roomState[roomId].permissions[socket.id] = true;
+      // Cancel the pending admin transfer — verified owner is back.
+      if (adminTransferTimers[roomId]) {
+        clearTimeout(adminTransferTimers[roomId]);
+        delete adminTransferTimers[roomId];
+      }
+      // Re-send the token so the client can re-persist it if needed.
+      socket.emit(ACTIONS.ADMIN_TOKEN, { adminToken: roomState[roomId].adminToken });
     }
+    // NOTE: If adminToken is absent or invalid, the transfer timer is NOT cancelled.
+    // This prevents non-admin joins from interfering with pending admin reclaim.
 
     // Default permission
     if (roomState[roomId].admin === socket.id) {
@@ -335,8 +342,11 @@ io.on('connection', (socket) => {
               const remaining = Array.from(currentRoom || []);
               if (remaining.length > 0) {
                 roomState[roomId].admin = remaining[0];
-                roomState[roomId].adminUserName = userSocketMap[remaining[0]];
                 roomState[roomId].permissions[remaining[0]] = true;
+                // Rotate the admin token so the previous admin can never reclaim.
+                roomState[roomId].adminToken = uuid();
+                // Deliver the new token to the new admin only.
+                io.to(remaining[0]).emit(ACTIONS.ADMIN_TOKEN, { adminToken: roomState[roomId].adminToken });
                 const clients = getAllConnectedClients(roomId);
                 io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
               }
