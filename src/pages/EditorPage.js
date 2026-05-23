@@ -34,11 +34,13 @@ import {
 } from 'react-router-dom';
 import VirtualConsole from '../components/VirtualConsole';
 import { useCodeRunner } from '../hooks/useCodeRunner';
+import useConnectionStatus from '../hooks/useConnectionStatus';
 
 import { isBinary, isImage, getModeFromFilename } from '../utils/fileUtils';
 
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+    const [saveStatus, setSaveStatus] = useState('Saved');
     const [showInvite, setShowInvite] = useState(false);
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -109,13 +111,14 @@ const EditorPage = () => {
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
     const socketRef = useRef(null);
+    const connectionStatus = useConnectionStatus(socketRef);
     const location = useLocation();
     const { roomId } = useParams();
     const reactNavigator = useNavigate();
 
     const [clients, setClients] = useState([]);
     const [socketReady, setSocketReady] = useState(false);
-    const [canWrite, setCanWrite] = useState(false);
+    const [canWrite, setCanWrite] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
 
     // File system state
@@ -138,13 +141,17 @@ const EditorPage = () => {
             socketRef.current.on('connect_failed', handleErrors);
 
             function handleErrors(e) {
-                console.log('socket error', e);
-                toast.error('Socket connection failed, try again later.');
-                reactNavigator('/');
+                console.warn('Socket reconnecting...', e);
+
+                setSocketReady(false);
+
+                // Do NOT redirect user
+                // Allow reconnect attempts
             }
 
             socketRef.current.on('connect', () => {
                 setSocketReady(true);
+                toast.success('Connected to room');
                 socketRef.current.emit(ACTIONS.JOIN, {
                     roomId,
                     userName: location.state?.userName,
@@ -229,7 +236,9 @@ const EditorPage = () => {
                         }
                     });
                     Object.entries(fileContents).forEach(([k, v]) => {
-                        fileContentsRef.current[k] = v;
+                        const savedDraft = getDraft(k);
+
+                        fileContentsRef.current[k] = savedDraft || v;
                     });
                     setFileContentsSnapshot(prev => ({ ...prev, ...fileContents }));
                 }
@@ -328,24 +337,40 @@ const EditorPage = () => {
         });
     }, []);
 
-    const handleCodeChange = useCallback((fileId, value) => {
-        fileContentsRef.current[fileId] = value;
-        setFileContentsSnapshot(prev => ({ ...prev, [fileId]: value }));
-    }, []);
+    
 
     const handleEditorReady = useCallback((fileId, editorInstance) => {
         editorsRef.current[fileId] = editorInstance;
     }, []);
 
-    const handleRun = useCallback(() => {
-        if (!activeFileId) return;
-        const activeFile = fileSystem[activeFileId];
-        if (!activeFile) return;
-        
-        if (isImage(activeFile.name)) {
-            toast.error('Image files cannot be executed');
-            return;
-        }
+    const saveDraft = (fileId, content) => {
+    localStorage.setItem(
+        `draft-${roomId}-${fileId}`,
+        content
+    );
+
+    setSaveStatus('Unsaved Changes');
+
+    setTimeout(() => {
+        setSaveStatus('Saved');
+    }, 800);
+};
+
+const getDraft = (fileId) => {
+    return localStorage.getItem(
+        `draft-${roomId}-${fileId}`
+    );
+};
+
+const handleRun = useCallback(() => {
+    if (!activeFileId) return;
+    const activeFile = fileSystem[activeFileId];
+    if (!activeFile) return;
+
+    if (isImage(activeFile.name)) {
+        toast.error('Image files cannot be executed');
+        return;
+    }
 
         const editor = editorsRef.current[activeFileId];
         const code = editor?.getValue?.() ?? fileContentsRef.current[activeFileId] ?? "";
@@ -644,7 +669,41 @@ const EditorPage = () => {
                             {clients.length > 0 && <span className="activity-badge">{clients.length}</span>}
                         </button>
                     </div>
+                    <div
+                        style={{
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            background:
+                            connectionStatus === 'Connected'
+                                ? '#50fa7b'
+                                : connectionStatus === 'Reconnecting'
+                                ? '#ffb86c'
+                                : '#ff5555',
+                            color: '#000',
+                            marginLeft: '10px',
+                        }}
+                    >
+                        {connectionStatus}
 
+
+                    </div>
+                    <div
+                        style={{
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            background: '#444',
+                            color: '#fff',
+                            marginLeft: '10px',
+                            marginTop: '8px',
+                            textAlign: 'center',
+                        }}
+                    >
+                        {saveStatus}
+                    </div>
                     <div className="activity-bar-bottom">
                         {canWrite && (
                             <>
@@ -802,7 +861,16 @@ const EditorPage = () => {
                                 roomId={roomId}
                                 fileId={activeFileId}
                                 fileName={activeFile.name}
-                                onCodeChange={handleCodeChange}
+                                onCodeChange={(fileId, code) => {
+                                    fileContentsRef.current[fileId] = code;
+
+                                    setFileContentsSnapshot(prev => ({
+                                        ...prev,
+                                        [fileId]: code,
+                                    }));
+
+                                    saveDraft(fileId, code);
+                                }}
                                 onEditorReady={handleEditorReady}
                                 userName={location.state?.userName}
                                 canWrite={canWrite}

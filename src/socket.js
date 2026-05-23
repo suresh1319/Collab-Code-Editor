@@ -2,10 +2,10 @@ import { io } from 'socket.io-client';
 
 export const initSocket = async () => {
     const options = {
-        'force new connection': true,
-        reconnectionAttempts: 'Infinity',
-        timeout: 10000,
-        transports:['websocket'],
+      'force new connection': true,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
+      transports: ['websocket', 'polling'],
     };
     // Use current origin in production to avoid localhost hardcoding from .env
     const backendUrl = process.env.NODE_ENV === 'production' 
