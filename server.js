@@ -122,6 +122,7 @@ io.on('connection', (socket) => {
         permissions: {},
         fileSystem: createDefaultFileSystem(),
         fileContents: {}, // stores uploaded file contents keyed by fileId
+        chatMessages: [], // stores group chat messages
       };
       // Send the ownership token ONLY to the admin socket.
       // No other client ever receives this value.
@@ -152,13 +153,16 @@ io.on('connection', (socket) => {
     const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
-    // Send current file system AND any stored file contents in one atomic emit.
-    // Combining both into a single frame eliminates the race where FS_SYNC triggers
-    // an Editor mount before FS_CONTENTS_SYNC has seeded initialContentsRef.
+    // Combine and send current file system and stored file contents.
     socket.emit(ACTIONS.FS_SYNC, {
       fileSystem: roomState[roomId].fileSystem,
       fileContents: roomState[roomId].fileContents,
     });
+
+    // Sync chat history to newly joined client
+    if (roomState[roomId].chatMessages.length > 0) {
+      socket.emit(ACTIONS.CHAT_RECEIVE, roomState[roomId].chatMessages);
+    }
   });
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
@@ -321,6 +325,34 @@ io.on('connection', (socket) => {
 
   socket.on(ACTIONS.SYNC_CODE, ({ code, socketId }) => {
     io.to(socketId).emit(ACTIONS.CODE_CHANGE, { code });
+  });
+
+  // ---- Group Chat ----
+  socket.on(ACTIONS.CHAT_SEND, ({ roomId, message }) => {
+    if (!roomState[roomId]) return;
+    
+    // Validate message
+    if (!message || typeof message !== 'string') return;
+    const trimmedMessage = message.trim();
+    if (trimmedMessage.length === 0) return;
+    const finalMessage = trimmedMessage.slice(0, 1000); // Max 1000 chars
+    
+    const chatMsg = {
+      id: uuid(),
+      userName: userSocketMap[socket.id] || 'Unknown',
+      message: finalMessage,
+      timestamp: new Date().toISOString(),
+      socketId: socket.id
+    };
+    
+    // Store message server-side (cap at 200 messages)
+    roomState[roomId].chatMessages.push(chatMsg);
+    if (roomState[roomId].chatMessages.length > 200) {
+      roomState[roomId].chatMessages.shift(); // Remove oldest
+    }
+    
+    // Broadcast to entire room (including sender)
+    io.to(roomId).emit(ACTIONS.CHAT_RECEIVE, chatMsg);
   });
 
   socket.on('disconnecting', () => {
