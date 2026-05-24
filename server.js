@@ -140,7 +140,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -157,7 +157,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -185,7 +185,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -203,9 +203,11 @@ io.on('connection', (socket) => {
     const reply = (success, message) => { if (typeof ack === 'function') ack({ success, message }); };
 
     if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
-    // Server-side permission check — reject read-only users
+    // Server-side permission check — reject read-only users.
+    // Only reply via the ack callback (not a separate socket.emit) so the
+    // client receives exactly one error signal per failure — the ack handler
+    // in EditorPage.js already shows an error toast.
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
     }
@@ -213,8 +215,10 @@ io.on('connection', (socket) => {
     const fs = roomState[roomId].fileSystem;
 
     // Merge nodes into file system in the order provided (folders before files)
+    // Only reply via the ack callback — do NOT also emit INVALID_PAYLOAD,
+    // because the client's ack callback already shows an error toast and
+    // emitting both would cause a double-toast UX regression.
     if (!Array.isArray(nodes)) {
-      socket.emit('error', { message: 'Invalid upload payload: nodes must be an array.' });
       reply(false, 'Invalid upload payload: nodes must be an array.');
       return;
     }
@@ -290,7 +294,29 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ---- Per-socket sliding-window rate limiter for CODE_CHANGE ----
+  // Prevents a single client from flooding the room with more than
+  // CODE_CHANGE_LIMIT events within any rolling CODE_CHANGE_WINDOW ms.
+  // Uses a true sliding window (timestamp queue) instead of a fixed window
+  // to avoid the boundary-burst problem where a fixed window allows up to
+  // 2× the limit when events straddle two adjacent windows.
+  // Events beyond the limit are silently dropped — the Yjs CRDT layer will
+  // converge state anyway.
+  const CODE_CHANGE_LIMIT = 30; // max events per rolling window per socket
+  const CODE_CHANGE_WINDOW = 1000; // rolling window size in ms
+  const socketRateTimestamps = []; // circular buffer of recent event timestamps
+
   socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
+    const now = Date.now();
+    // Evict timestamps that have slid out of the window
+    while (socketRateTimestamps.length > 0 && now - socketRateTimestamps[0] > CODE_CHANGE_WINDOW) {
+      socketRateTimestamps.shift();
+    }
+    if (socketRateTimestamps.length >= CODE_CHANGE_LIMIT) {
+      // Silently drop — Yjs will handle consistency
+      return;
+    }
+    socketRateTimestamps.push(now);
     socket.to(roomId).emit(ACTIONS.CODE_CHANGE, { code });
   });
 
