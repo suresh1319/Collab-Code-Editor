@@ -118,17 +118,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
       : (process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001');
     const wsUrl = baseOrigin.replace(/^http/, 'ws') + '/yjs';
 
-    let provider = null;
-
-    try {
-        provider = new WebsocketProvider(
-            wsUrl,
-            `${roomId}:${fileId}`,
-            ydoc
-        );
-    } catch (error) {
-        console.error('Yjs connection failed:', error);
-    }
+    const provider = new WebsocketProvider(wsUrl, `${roomId}:${fileId}`, ydoc);
     providerRef.current = provider;
 
     const ytext = ydoc.getText('codemirror');
@@ -143,12 +133,9 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
         });
       }
     };
-    if (!provider) return;
-
     provider.on('sync', handleSync);
 
     // Cursor awareness
-
     const awareness = provider.awareness;
     const myColor = getColor(awareness.clientID);
     awareness.setLocalStateField('user', { name: userName || 'Anonymous', color: myColor });
@@ -217,7 +204,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
     };
   }, [roomId, fileId]); // re-init only when file or room changes
 
-  
+  if (!socketRef.current) return null;
 
   const modeObj = getModeFromFilename(fileName);
   const modeLabel = (modeObj?.name || modeObj || 'text').toString().toUpperCase();
