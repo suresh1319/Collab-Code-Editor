@@ -89,8 +89,7 @@ body {
 /* ─── Hero Content ───────────────────────────────────────── */
 
  .hero-content {
-  position: absolute;
-  top: 52%;              
+  position: absolute;             
   left: 45%;
   transform: translate(-50%, -50%);
   top: 40%;   
