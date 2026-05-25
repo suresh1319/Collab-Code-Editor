@@ -18,6 +18,11 @@ const ACTIONS = {
     FS_RENAME_NODE: 'fs_rename_node',
     // Uploads: sends nodes + file contents in one batch so content syncs to all collaborators
     FS_UPLOAD_BATCH: 'fs_upload_batch',
+    // Server → admin-only: delivers the secure ownership token for reconnect validation
+    ADMIN_TOKEN: 'admin_token',
+    // Group Chat
+    CHAT_SEND: 'chat_send',
+    CHAT_RECEIVE: 'chat_receive',
 };
 
 module.exports = ACTIONS;
