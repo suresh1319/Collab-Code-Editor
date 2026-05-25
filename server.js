@@ -177,9 +177,6 @@ io.on('connection', (socket) => {
     const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
-    // Log the join activity
-    logAndBroadcastActivity(roomId, socket, 'join', `${userName} joined the room.`);
-
     // Combine and send current file system and stored file contents.
     socket.emit(ACTIONS.FS_SYNC, {
       fileSystem: roomState[roomId].fileSystem,
@@ -195,6 +192,9 @@ io.on('connection', (socket) => {
     if (roomState[roomId].activities && roomState[roomId].activities.length > 0) {
       socket.emit(ACTIONS.ACTIVITY_RECEIVE, roomState[roomId].activities);
     }
+
+    // Log the join activity (Fired after history sync so joiner receives history array first)
+    logAndBroadcastActivity(roomId, socket, 'join', `${userName} joined the room.`);
   });
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
