@@ -1,134 +1,216 @@
-# CollabCE — Collaborative Code Editor
+# CollabCE
 
-> A real-time collaborative IDE in your browser. Create, edit, and share full projects with your team — just like VS Code, but multiplayer.
+Real-time collaborative coding in the browser. Create rooms, edit shared files, manage access, and work on the same project with your team from a single web app.
 
----
+## Table of Contents
 
-## ✨ Features
+- [Overview](#overview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Available Scripts](#available-scripts)
+- [Environment Variables](#environment-variables)
+- [Project Structure](#project-structure)
+- [Deployment Notes](#deployment-notes)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Roadmap Ideas](#roadmap-ideas)
+- [License](#license)
 
-### 🖊️ Real-Time Collaboration
-- **Yjs CRDT sync** — conflict-free real-time editing across all connected users
-- **Live cursors** — see exactly where teammates are typing, with colored labels
-- **Per-file collaboration** — multiple users can edit different files simultaneously
+## Overview
 
-### 📁 Full Project Explorer
-- VS Code-style **file & folder tree** in a collapsible side panel
-- **Create, rename, delete** files and folders inline
-- File system changes sync instantly to all connected users
+CollabCE is a multiplayer code editor built around shared rooms. It combines a React-based editing experience with Yjs-powered collaboration and a Node.js backend that serves both the app and the real-time sync layer.
 
-### 📂 Multi-File Editing
-- **File tabs** — open multiple files, switch between them easily
-- **Auto language detection** — syntax highlighting based on file extension
+The project is aimed at developers who want:
 
-### 🌐 Multi-Language Syntax Highlighting
-| Language | Extensions |
-|---|---|
-| JavaScript / JSX / TS | `.js` `.jsx` `.ts` `.tsx` |
-| HTML | `.html` `.htm` |
-| CSS / SCSS | `.css` `.scss` |
-| Python | `.py` |
-| JSON | `.json` |
-| Markdown | `.md` |
-| Shell | `.sh` `.bash` |
-| SQL | `.sql` |
-| PHP | `.php` |
-| C / C++ / Java / C# | `.c` `.cpp` `.java` `.cs` |
+- real-time shared editing
+- multi-file project management
+- lightweight role-based access control
+- fast room sharing without heavy setup
 
-### 👥 Access Control
-- **Admin / Editor / Viewer** role badges for every user
-- Admin can **grant or revoke** write access per user
-- Viewers can **request write access** from the admin
-- All permission changes reflect in real-time
+## Features
 
-### 📤 Upload Projects
-- Upload **individual files** or an **entire folder** with its structure intact
-- Uploaded content is injected into the collaborative Yjs document automatically
+### Real-Time Collaboration
 
-### 📥 Download Project
-- Download the full project as a **ZIP file** with the correct folder structure using `jszip`
+- Yjs CRDT syncing for conflict-free shared editing
+- live cursors so teammates can see where others are typing
+- per-file collaboration across the same room
 
-### 🔗 Invite Friends
-- Share a link via **WhatsApp, Telegram, Twitter, LinkedIn, Facebook, or Email**
-- Invite links pre-fill the Room ID on the join page
+### Project Workspace
 
-### 🎨 Light / Dark Theme
-- Toggle between light and dark mode from anywhere in the editor
-- Theme persists across sessions via `localStorage`
+- VS Code-style file and folder explorer
+- inline create, rename, and delete actions
+- multi-file tabs for switching between open files quickly
 
----
+### Access Control
 
-## 🛠️ Technology Stack
+- admin, editor, and viewer roles
+- per-user write access toggles
+- request/approve edit flow for read-only participants
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React, React Router, CodeMirror 5 |
-| **Collaboration** | Yjs (CRDT), y-websocket, y-codemirror |
-| **Backend** | Node.js, Express, Socket.IO |
-| **Styling** | Vanilla CSS with CSS variables (dark/light theme) |
-| **Download** | jszip |
+### Project Import and Export
 
----
+- upload individual files or entire folders
+- preserve project structure during uploads
+- download the active project as a ZIP archive
 
-## 🚀 Running Locally
+### Editor Experience
+
+- syntax highlighting based on file extension
+- light and dark theme support
+- room sharing through generated invite links
+
+## Tech Stack
+
+| Layer | Tools |
+| --- | --- |
+| Frontend | React, React Router, CodeMirror 5 |
+| Collaboration | Yjs, y-websocket, y-codemirror |
+| Backend | Node.js, Express, Socket.IO |
+| Styling | Vanilla CSS with CSS variables |
+| Utilities | JSZip, UUID, React Hot Toast |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18 or later recommended
+- npm 9 or later
+
+### Installation
 
 ```bash
-# 1. Install dependencies
+git clone https://github.com/suresh1319/Collab-Code-Editor.git
+cd Collab-Code-Editor
 npm install
+```
 
-# 2. Start both frontend and backend concurrently
+### Run Locally
+
+Start frontend and backend together:
+
+```bash
 npm run dev
 ```
 
-- Frontend → `http://localhost:3000`
-- Backend (Socket.IO + Yjs WebSocket) → `http://localhost:3001`
+App endpoints:
 
----
+- frontend: `http://localhost:3000`
+- backend: `http://localhost:3001`
 
-## ☁️ Deployment (Render / Railway)
+If you want to run services separately:
 
-Since Socket.IO and the Yjs y-websocket server share a **single port (3001)**, deployment is straightforward.
-
-**Build command:**
 ```bash
-npm install && npm run build
+npm run server
+npm start
 ```
 
-**Start command:**
+## Available Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm start` | Start the React development server |
+| `npm run server` | Start the Express and Socket.IO backend with Nodemon |
+| `npm run dev` | Run frontend and backend together |
+| `npm run build` | Create a production build |
+| `npm test` | Run the React test suite |
+| `npm run prod` | Build the app and start the production server |
+| `npm run server-only` | Run the alternate standalone server entry |
+
+## Environment Variables
+
+Create a local `.env` file when needed.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `3001` | Backend server port |
+| `CLIENT_ORIGIN` | `http://localhost:3000` | Allowed frontend origin for CORS |
+
+## Project Structure
+
+```text
+Collab-Code-Editor/
+|-- src/
+|   |-- components/      Reusable UI pieces such as the editor, explorer, tabs, and modals
+|   |-- hooks/           Shared React hooks such as code execution helpers
+|   |-- pages/           Route-level screens like landing, join, and editor
+|   |-- utils/           ZIP export, preview handling, and helper logic
+|   |-- Actions.js       Shared socket event constants
+|   |-- socket.js        Frontend socket initialization
+|-- server.js            Main Express + Socket.IO + Yjs entrypoint
+|-- build/               Production build output
+|-- README.md            Project documentation
+```
+
+## Deployment Notes
+
+CollabCE serves the React build and the real-time collaboration backend from the same Node.js app, which makes deployment simpler than splitting the stack.
+
+Suggested production flow:
+
 ```bash
+npm install
+npm run build
 node server.js
 ```
 
-**Environment variables:**
-| Variable | Example Value |
-|---|---|
-| `PORT` | `3001` |
-| `CLIENT_ORIGIN` | `https://your-app.onrender.com` |
+This setup works well on platforms such as Render or Railway as long as the deployed frontend origin matches `CLIENT_ORIGIN`.
 
-> The app serves the React build statically from `server.js` and handles all WebSocket upgrades (Socket.IO + Yjs) on the same port.
+## Troubleshooting
 
----
+### App loads but rooms do not sync
 
-## 📸 Layout Overview
+- confirm the frontend is pointing to the correct backend origin
+- verify the backend is running on the expected port
+- check browser console output for WebSocket connection errors
 
-```
-┌──────┬───────────────────────────────────────────────────┐
-│ Act. │  Side Panel     │  File Tabs                      │
-│ Bar  │  (Explorer /    │  index.js × App.js ×            │
-│      │   Users)        ├─────────────────────────────────┤
-│  📁  │                 │                                 │
-│  👥  │  File Tree /    │        CodeMirror Editor        │
-│      │  User Cards     │        (Yjs-powered)            │
-│  ⬆️  │                 │                                 │
-│  🗂️  │                 │                                 │
-│  📨  │                 │                                 │
-│  🔑  │                 │                                 │
-│  💾  │                 │                                 │
-└──────┴─────────────────┴─────────────────────────────────┘
-                          [ ☀️ Light ]  [ 🚪 Leave ]  ← top right
-```
+### Changes are not reflected for collaborators
 
----
+- make sure all users joined the same room ID
+- verify the backend process did not restart mid-session
+- inspect `server.js` logs for socket or Yjs upgrade issues
 
-## 📄 License
+### Build or install problems
+
+- remove `node_modules` and reinstall with `npm install`
+- confirm your Node.js version is compatible with `react-scripts`
+
+## Contributing
+
+Contributions are welcome. A clean contribution flow helps maintainers review faster.
+
+### Suggested Workflow
+
+1. Fork the repository.
+2. Create a focused branch such as `fix/mobile-layout` or `docs/readme-onboarding`.
+3. Make one scoped change at a time.
+4. Run the most relevant verification command before opening the PR.
+5. Open a pull request with a short summary and exact test or verification commands.
+
+### Pull Request Guidance
+
+- keep PRs small and issue-focused
+- describe what changed and why
+- mention any known unrelated failures clearly
+- include screenshots or GIFs for visible UI changes when available
+
+### Commit Style
+
+Short, descriptive commit messages work best. Examples:
+
+- `fix: improve mobile editor layout`
+- `feat: add reusable public footer`
+- `docs: improve readme onboarding`
+
+## Roadmap Ideas
+
+These are not commitments, but useful directions for future contributors:
+
+- richer onboarding screenshots or demo GIFs
+- stronger mobile editor ergonomics
+- better execution diagnostics for the built-in runner
+- improved contributor docs and architectural diagrams
+
+## License
 
 MIT
