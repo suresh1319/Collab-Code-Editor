@@ -113,7 +113,7 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent-color, #4aed88);
+  background: #4aed88;
   animation: pulseDot 2s infinite;
   flex-shrink: 0;
   vertical-align: middle;
