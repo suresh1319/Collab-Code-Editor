@@ -24,7 +24,7 @@ export default function DeleteConfirmModal({ target, onCancel, onConfirm }) {
         <p className="dcm-body">
           <strong>{target?.name}</strong> will be permanently deleted
           {isFolder && target.childCount > 0
-            ? ` along with all ${target.childCount} files inside`
+            ? ` along with ${target.childCount} item${target.childCount === 1 ? '' : 's'} directly inside`
             : ""}.
           <br />
           <span className="dcm-note">⚠️ This affects everyone in the room.</span>

@@ -83,6 +83,14 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
         clearTimeout(undoToast.timer);
         setUndoToast(null);
     };
+
+    useEffect(() => {
+        return () => {
+            if (undoToast?.timer) {
+                clearTimeout(undoToast.timer);
+            }
+        };
+}, [undoToast]);
     
     useEffect(() => {
         return () => {
