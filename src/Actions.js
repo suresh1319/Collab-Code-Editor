@@ -11,6 +11,7 @@ const ACTIONS = {
     WRITE_ACCESS_REQUESTED: 'write_access_requested',
     APPROVE_CODE_EDIT: 'approve_code_edit',
     DENY_CODE_EDIT: 'deny_code_edit',
+    PERMISSION_DENIED: 'permission_denied',
     // File system actions
     FS_SYNC: 'fs_sync',
     FS_CREATE_NODE: 'fs_create_node',

@@ -168,7 +168,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -185,7 +185,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -213,7 +213,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -233,7 +233,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
     }
