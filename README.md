@@ -121,10 +121,15 @@ npm start
 
 Create a local `.env` file when needed.
 
+```bash
+cp .env.example .env
+```
+
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `3001` | Backend server port |
 | `CLIENT_ORIGIN` | `http://localhost:3000` | Allowed frontend origin for CORS |
+| `REACT_APP_BACKEND_URL` | `http://localhost:3001` | Backend URL used by the React frontend |
 
 ## Project Structure
 
