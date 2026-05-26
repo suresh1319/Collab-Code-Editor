@@ -14,6 +14,8 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+const MAX_UPLOAD_FILE_SIZE = 1 * 1024 * 1024;
+const MAX_ROOM_FILE_CONTENTS_SIZE = 50 * 1024 * 1024;
 
 app.use(
   helmet({
@@ -122,6 +124,12 @@ function getAllConnectedClients(roomId) {
       canWrite: state ? !!state.permissions[socketId] : false
     };
   });
+}
+
+function getStoredContentSize(fileContents = {}) {
+  return Object.values(fileContents).reduce((total, content) => {
+    return total + (typeof content === 'string' ? Buffer.byteLength(content, 'utf8') : 0);
+  }, 0);
 }
 
 io.on('connection', (socket) => {
@@ -310,6 +318,26 @@ io.on('connection', (socket) => {
 
     // Store uploaded file contents server-side for late joiners
     if (fileContents && typeof fileContents === 'object') {
+      let projectedRoomSize = getStoredContentSize(roomState[roomId].fileContents);
+
+      for (const content of Object.values(fileContents)) {
+        if (typeof content !== 'string') continue;
+
+        const contentSize = Buffer.byteLength(content, 'utf8');
+        if (contentSize > MAX_UPLOAD_FILE_SIZE) {
+          socket.emit('error', { message: 'Uploaded text files must be 1MB or smaller.' });
+          reply(false, 'Uploaded text files must be 1MB or smaller.');
+          return;
+        }
+
+        projectedRoomSize += contentSize;
+        if (projectedRoomSize > MAX_ROOM_FILE_CONTENTS_SIZE) {
+          socket.emit('error', { message: 'Room storage exceeds the 50MB upload limit.' });
+          reply(false, 'Room storage exceeds the 50MB upload limit.');
+          return;
+        }
+      }
+
       Object.assign(roomState[roomId].fileContents, fileContents);
     }
 

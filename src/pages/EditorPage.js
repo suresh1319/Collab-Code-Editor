@@ -42,6 +42,8 @@ import { useCodeRunner } from '../hooks/useCodeRunner';
 
 import { isBinary, isImage, getModeFromFilename } from '../utils/fileUtils';
 
+const MAX_UPLOAD_FILE_SIZE = 1 * 1024 * 1024;
+
 const EditorPage = () => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
@@ -614,6 +616,11 @@ const EditorPage = () => {
             // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
 
+            if (file.size > MAX_UPLOAD_FILE_SIZE) {
+                toast.error(`${file.name} exceeds the 1MB upload limit.`);
+                return { fileId, rejected: true };
+            }
+
             // Handle image vs binary vs text reading
             if (isImage(file.name)) {
                 try {
@@ -631,7 +638,14 @@ const EditorPage = () => {
             return { fileId, content };
         });
 
-        const results = (await Promise.all(fileReadPromises)).filter(Boolean);
+        const uploadResults = (await Promise.all(fileReadPromises)).filter(Boolean);
+        const rejectedResults = uploadResults.filter(result => result.rejected);
+        const results = uploadResults.filter(result => !result.rejected);
+
+        if (rejectedResults.length > 0) {
+            setActivePanel(lastPersistentPanel);
+            return;
+        }
 
         // Build fileContents map: { fileId -> textContent }
         const fileContents = {};
