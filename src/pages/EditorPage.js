@@ -24,6 +24,7 @@ import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
 import ConfirmModal from '../components/ConfirmModal';
 import LeaveRoomModal from '../components/LeaveRoomModal';
+import RequestAccessModal from '../components/RequestAccessModal';
 import ChatPanel from '../components/ChatPanel';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
@@ -44,6 +45,7 @@ const EditorPage = () => {
     const [showInvite, setShowInvite] = useState(false);
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [showLeaveModal, setShowLeaveModal] = useState(false);
+    const [showRequestAccessModal, setShowRequestAccessModal] = useState(false);
     const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'chat' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
     const [consoleOpen, setConsoleOpen] = useState(false);
@@ -475,10 +477,14 @@ const EditorPage = () => {
     }
 
     function requestWriteAccess() {
-        const message = prompt('Enter a message for the admin:');
+        setShowRequestAccessModal(true);
+    }
+
+    function handleSendWriteAccessRequest(message) {
         if (message) {
             socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName });
             toast.success('Request sent to admin!');
+            setShowRequestAccessModal(false);
         }
     }
 
@@ -957,6 +963,12 @@ const EditorPage = () => {
                     }}
                 />
             )}
+
+            <RequestAccessModal
+                isOpen={showRequestAccessModal}
+                onClose={() => setShowRequestAccessModal(false)}
+                onSubmit={handleSendWriteAccessRequest}
+            />
 
             {/* Hidden file inputs for upload */}
             <input

@@ -9,6 +9,8 @@
   --input-text: #f8f8f2;
   --box-shadow: rgba(0,0,0,0.3);
   --accent-color: #007acc;
+  --error-color: #ff5555;
+  --success-color: #50fa7b;
 }
 
 [data-theme="light"] {
@@ -22,6 +24,8 @@
   --input-text: #1c1e29;
   --box-shadow: rgba(0,0,0,0.1);
   --accent-color: #007acc;
+  --error-color: #ef4444;
+  --success-color: #22c55e;
 }
 
 body {
