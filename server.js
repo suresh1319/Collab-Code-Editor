@@ -247,6 +247,29 @@ io.on('connection', (socket) => {
       reply(false, 'Invalid upload payload: nodes must be an array.');
       return;
     }
+    // Validate file content sizes BEFORE mutating the file system.
+    // This prevents stale/orphaned nodes if a file exceeds the limit.
+    if (fileContents && typeof fileContents === 'object') {
+      const MAX_FILE_SIZE = 1 * 1024 * 1024;
+      const MAX_ROOM_SIZE = 50 * 1024 * 1024;
+
+      let totalSize = Object.values(roomState[roomId].fileContents)
+        .reduce((acc, c) => acc + (typeof c === 'string' ? Buffer.byteLength(c) : 0), 0);
+
+      for (const [, content] of Object.entries(fileContents)) {
+        const size = typeof content === 'string' ? Buffer.byteLength(content) : 0;
+        if (size > MAX_FILE_SIZE) {
+          reply(false, 'File exceeds maximum size of 1MB.');
+          return;
+        }
+        totalSize += size;
+        if (totalSize > MAX_ROOM_SIZE) {
+          reply(false, 'Room storage exceeds maximum capacity.');
+          return;
+        }
+      }
+    }
+
     for (const node of nodes) {
       fs[node.id] = node;
       if (fs[node.parentId]) {
@@ -260,25 +283,6 @@ io.on('connection', (socket) => {
 
     // Store uploaded file contents server-side for late joiners
     if (fileContents && typeof fileContents === 'object') {
-      const MAX_FILE_SIZE = 1 * 1024 * 1024;
-      const MAX_ROOM_SIZE = 50 * 1024 * 1024;
-
-      let totalSize = Object.values(roomState[roomId].fileContents)
-        .reduce((acc, c) => acc + (typeof c === 'string' ? Buffer.byteLength(c) : 0), 0);
-
-      for (const [fileId, content] of Object.entries(fileContents)) {
-        const size = typeof content === 'string' ? Buffer.byteLength(content) : 0;
-        if (size > MAX_FILE_SIZE) {
-          reply(false, 'File exceeds maximum size of 1MB.');
-          return;
-        }
-        totalSize += size;
-        if (totalSize > MAX_ROOM_SIZE) {
-          reply(false, 'Room storage exceeds maximum capacity.');
-          return;
-        }
-      }
-
       Object.assign(roomState[roomId].fileContents, fileContents);
     }
 
