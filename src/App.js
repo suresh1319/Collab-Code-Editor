@@ -10,8 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
-    <>
-    <div>
+    <ErrorBoundary>
       <Toaster
       position='top-right'
       
@@ -27,18 +26,15 @@ function App() {
           },
         },
       }}></Toaster>
-    </div>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <ErrorBoundary>
-          <Routes>
-            <Route path='/' element={<LandingPage />}></Route>
+        <Routes>
+          <Route path='/' element={<LandingPage />}></Route>
 <Route path='/join' element={<Home />}></Route>
-            <Route path='/editor/:roomId' element={<EditorPage />}></Route>
-            <Route path='*' element={<NotFound/>}></Route>
-          </Routes>
-        </ErrorBoundary>
+          <Route path='/editor/:roomId' element={<EditorPage />}></Route>
+          <Route path='*' element={<NotFound/>}></Route>
+        </Routes>
       </BrowserRouter>
-    </>
+    </ErrorBoundary>
   );
 }
 
