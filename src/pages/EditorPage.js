@@ -574,6 +574,12 @@ const EditorPage = () => {
         };
 
         const fileReadPromises = files.map(async (file) => {
+            // Reject files exceeding the 1MB size limit before processing
+            if (file.size > 1 * 1024 * 1024) {
+                toast.error(`${file.name} exceeds the 1MB size limit.`);
+                return null;
+            }
+
             let parentId = 'root';
             if (isFolder && file.webkitRelativePath) {
                 const parts = file.webkitRelativePath.split('/');
