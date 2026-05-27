@@ -14,28 +14,35 @@ class ErrorBoundary extends React.Component {
     console.error('ErrorBoundary caught:', error, errorInfo);
   }
 
+  handleGoHome = () => {
+    window.location.href = '/';
+  };
+
   render() {
     if (this.state.hasError) {
       return (
         <div
           style={{
+            minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: '100vh',
-            fontFamily: 'monospace',
             gap: '1rem',
-            textAlign: 'center',
             padding: '2rem',
+            textAlign: 'center',
+            fontFamily: 'monospace',
+            background: '#0f172a',
+            color: '#e5e7eb',
           }}
         >
           <h2>Something went wrong</h2>
-          <p style={{ color: '#666', maxWidth: '500px' }}>
+          <p style={{ maxWidth: '32rem', color: '#9ca3af' }}>
             {this.state.error?.message || 'An unexpected error occurred.'}
           </p>
           <button
-            onClick={() => (window.location.href = '/')}
+            type="button"
+            onClick={this.handleGoHome}
             style={{
               padding: '0.75rem 1.5rem',
               background: '#4aed88',
@@ -44,6 +51,7 @@ class ErrorBoundary extends React.Component {
               cursor: 'pointer',
               fontSize: '1rem',
               fontWeight: 600,
+              color: '#052e16',
             }}
           >
             Go Home
