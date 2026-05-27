@@ -597,7 +597,9 @@ const EditorPage = () => {
                     content = '';
                 }
             } else if (isBinary(file.name)) {
-                // Skip content reading for non-image binary files
+                // Non-image binary files: add node to tree without content
+                const fileId = uuid();
+                nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
                 return null;
             } else {
                 content = await readFileAsText(file);
