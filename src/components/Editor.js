@@ -15,7 +15,10 @@ import 'codemirror/mode/shell/shell';
 import 'codemirror/mode/sql/sql';
 import 'codemirror/mode/php/php';
 import 'codemirror/mode/clike/clike'; // C, C++, Java, C#
-
+import 'codemirror/mode/go/go';
+import 'codemirror/mode/rust/rust';
+import 'codemirror/mode/yaml/yaml';
+import 'codemirror/mode/dart/dart';
 // Addons
 import 'codemirror/addon/edit/closetag';
 import 'codemirror/addon/edit/closebrackets';
