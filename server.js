@@ -212,10 +212,28 @@ io.on('connection', (socket) => {
     if (node && node.parentId && fs[node.parentId]) {
       fs[node.parentId].children = (fs[node.parentId].children || []).filter(c => c !== nodeId);
     }
-    // Remove from fileSystem and evict any stored contents for deleted nodes.
-    // Without this, late joiners would receive content for files that no longer exist.
-    toDelete.forEach(id => { delete fs[id]; delete roomState[roomId].fileContents[id]; });
+    // Remove from fileSystem and evict any stored contents, locks, and active editors for deleted nodes.
+    // Without this, late joiners would receive content or lock states for files that no longer exist.
+    let locksChanged = false;
+    toDelete.forEach(id => {
+      delete fs[id];
+      delete roomState[roomId].fileContents[id];
+      if (roomState[roomId].fileLocks && roomState[roomId].fileLocks[id]) {
+        delete roomState[roomId].fileLocks[id];
+        locksChanged = true;
+      }
+      if (roomState[roomId].activeEditors && roomState[roomId].activeEditors[id]) {
+        delete roomState[roomId].activeEditors[id];
+        locksChanged = true;
+      }
+    });
     io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+    if (locksChanged) {
+      io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+        fileLocks: roomState[roomId].fileLocks,
+        activeEditors: roomState[roomId].activeEditors
+      });
+    }
   });
 
   socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {

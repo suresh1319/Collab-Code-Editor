@@ -12,7 +12,6 @@ import {
     ChevronRight,
     ChevronDown,
     Lock,
-    Unlock,
 } from 'lucide-react';
 
 // File icon by extension — returns a Lucide component

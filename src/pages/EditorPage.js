@@ -150,6 +150,7 @@ const EditorPage = () => {
     // File locking state
     const [fileLocks, setFileLocks] = useState({});
     const [activeEditors, setActiveEditors] = useState({});
+    const [requestingEditFileId, setRequestingEditFileId] = useState(null);
     const fileSystemRef = useRef({});
 
     // Track file contents for download
@@ -453,9 +454,14 @@ const EditorPage = () => {
     }, [roomId]);
 
     const handleRequestEditAccess = useCallback((fileId) => {
-        if (!socketRef.current) return;
-        socketRef.current.emit(ACTIONS.REQUEST_EDIT_ACCESS, { roomId, fileId });
+        setRequestingEditFileId(fileId);
+    }, []);
+
+    const handleSendFileEditRequest = useCallback((fileId, message) => {
+        if (!socketRef.current || !message) return;
+        socketRef.current.emit(ACTIONS.REQUEST_EDIT_ACCESS, { roomId, fileId, message });
         toast.success("Edit access request sent to lock owner.");
+        setRequestingEditFileId(null);
     }, [roomId]);
 
     // ---- File system event handlers ----
@@ -1101,6 +1107,15 @@ const EditorPage = () => {
                 isOpen={showRequestAccessModal}
                 onClose={() => setShowRequestAccessModal(false)}
                 onSubmit={handleSendWriteAccessRequest}
+            />
+
+            <RequestAccessModal
+                isOpen={!!requestingEditFileId}
+                onClose={() => setRequestingEditFileId(null)}
+                onSubmit={(message) => handleSendFileEditRequest(requestingEditFileId, message)}
+                title="Request File Edit Access"
+                description={`Send a message to the lock owner requesting permission to edit ${fileSystem[requestingEditFileId]?.name || 'this file'}.`}
+                placeholder="Why do you need to edit this file?"
             />
 
             {/* Hidden file inputs for upload */}
