@@ -1697,6 +1697,29 @@ body[data-theme='light'] .console-separator::after {
   transform: translateY(-2px);
 }
 
+.landing-navbar-right{
+  display:flex;
+  align-items:center;
+  gap:2rem;
+}
+
+.landing-nav-links{
+  display:flex;
+  gap:2rem;
+  align-items:center;
+}
+
+.landing-nav-links a{
+  text-decoration:none;
+  color: var(--text-color);
+  font-weight:500;
+  transition: color 0.2s ease;
+}
+
+.landing-nav-links a:hover{
+  color: #6366f1;
+}
+
 /* Hero */
 .landing-hero {
   padding: 100px 7% 90px;
@@ -1824,6 +1847,7 @@ body[data-theme='light'] .console-separator::after {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 24px;
+  margin-top: 3rem;
 }
 
 .step-card {
@@ -1837,6 +1861,7 @@ body[data-theme='light'] .console-separator::after {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  position:relative;
 }
 
 .step-card:hover {
@@ -1856,6 +1881,7 @@ body[data-theme='light'] .console-separator::after {
   margin: 0 auto 20px;
   font-weight: 800;
   font-size: 1.1rem;
+  margin-bottom: 1rem;
 }
 
 .step-card h3 {
@@ -1946,6 +1972,10 @@ body[data-theme='light'] .console-separator::after {
 
   .hero-btn {
     width: 100%;
+  }
+
+  .landing-nav-links{
+    gap:1rem;
   }
 }
 
