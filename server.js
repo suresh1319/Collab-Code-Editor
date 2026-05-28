@@ -123,6 +123,8 @@ io.on('connection', (socket) => {
         fileSystem: createDefaultFileSystem(),
         fileContents: {}, // stores uploaded file contents keyed by fileId
         chatMessages: [], // stores group chat messages
+        fileLocks: {}, // Key: fileId, Value: { socketId, userName, allowedUsers }
+        activeEditors: {}, // Key: fileId, Value: { socketId, userName }
       };
       // Send the ownership token ONLY to the admin socket.
       // No other client ever receives this value.
@@ -157,6 +159,12 @@ io.on('connection', (socket) => {
     socket.emit(ACTIONS.FS_SYNC, {
       fileSystem: roomState[roomId].fileSystem,
       fileContents: roomState[roomId].fileContents,
+    });
+
+    // Sync file locks and active editors
+    socket.emit(ACTIONS.LOCK_STATUS_UPDATE, {
+      fileLocks: roomState[roomId].fileLocks || {},
+      activeEditors: roomState[roomId].activeEditors || {}
     });
 
     // Sync chat history to newly joined client
@@ -355,6 +363,140 @@ io.on('connection', (socket) => {
     io.to(roomId).emit(ACTIONS.CHAT_RECEIVE, chatMsg);
   });
 
+  // ---- File Lock & Edit Access Request System ----
+  socket.on(ACTIONS.FILE_LOCKED, ({ roomId, fileId }) => {
+    if (!roomState[roomId]) return;
+    const room = roomState[roomId];
+    const isRoomAdmin = room.admin === socket.id;
+    const hasWritePermission = room.permissions[socket.id] === true;
+
+    if (!hasWritePermission && !isRoomAdmin) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to lock files in this room.' });
+      return;
+    }
+
+    // Check if already locked by someone else (only admin can override)
+    const existingLock = room.fileLocks?.[fileId];
+    if (existingLock && existingLock.socketId !== socket.id && !isRoomAdmin) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'This file is already locked by someone else.' });
+      return;
+    }
+
+    const userName = userSocketMap[socket.id] || 'Unknown';
+    if (!room.fileLocks) room.fileLocks = {};
+    room.fileLocks[fileId] = {
+      socketId: socket.id,
+      userName: userName,
+      allowedUsers: {}
+    };
+
+    io.to(roomId).emit(ACTIONS.FILE_LOCKED, { fileId, socketId: socket.id, userName });
+    io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+      fileLocks: room.fileLocks,
+      activeEditors: room.activeEditors || {}
+    });
+  });
+
+  socket.on(ACTIONS.FILE_UNLOCKED, ({ roomId, fileId }) => {
+    if (!roomState[roomId]) return;
+    const room = roomState[roomId];
+    const lock = room.fileLocks?.[fileId];
+    if (!lock) return;
+
+    const isRoomAdmin = room.admin === socket.id;
+    if (lock.socketId !== socket.id && !isRoomAdmin) {
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You cannot unlock a file locked by someone else.' });
+      return;
+    }
+
+    delete room.fileLocks[fileId];
+    io.to(roomId).emit(ACTIONS.FILE_UNLOCKED, { fileId });
+    io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+      fileLocks: room.fileLocks,
+      activeEditors: room.activeEditors || {}
+    });
+  });
+
+  socket.on(ACTIONS.REQUEST_EDIT_ACCESS, ({ roomId, fileId }) => {
+    if (!roomState[roomId]) return;
+    const room = roomState[roomId];
+    const lock = room.fileLocks?.[fileId];
+    if (!lock) return;
+
+    const userName = userSocketMap[socket.id] || 'Unknown';
+    const fileName = room.fileSystem[fileId]?.name || 'file';
+
+    // Route request to current lock owner
+    io.to(lock.socketId).emit(ACTIONS.REQUEST_EDIT_ACCESS, {
+      requesterSocketId: socket.id,
+      requesterName: userName,
+      fileId,
+      fileName
+    });
+  });
+
+  socket.on(ACTIONS.APPROVE_EDIT_ACCESS, ({ roomId, fileId, requesterSocketId }) => {
+    if (!roomState[roomId]) return;
+    const room = roomState[roomId];
+    const lock = room.fileLocks?.[fileId];
+    if (!lock) return;
+
+    const isRoomAdmin = room.admin === socket.id;
+    if (lock.socketId !== socket.id && !isRoomAdmin) return;
+
+    if (!lock.allowedUsers) lock.allowedUsers = {};
+    lock.allowedUsers[requesterSocketId] = true;
+
+    // Notify requester
+    io.to(requesterSocketId).emit(ACTIONS.APPROVE_EDIT_ACCESS, { fileId });
+    
+    // Broadcast lock status update to sync all clients
+    io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+      fileLocks: room.fileLocks,
+      activeEditors: room.activeEditors || {}
+    });
+  });
+
+  socket.on(ACTIONS.REJECT_EDIT_ACCESS, ({ roomId, fileId, requesterSocketId }) => {
+    if (!roomState[roomId]) return;
+    const room = roomState[roomId];
+    const lock = room.fileLocks?.[fileId];
+    if (!lock) return;
+
+    const isRoomAdmin = room.admin === socket.id;
+    if (lock.socketId !== socket.id && !isRoomAdmin) return;
+
+    const fileName = room.fileSystem[fileId]?.name || 'file';
+
+    // Notify requester
+    io.to(requesterSocketId).emit(ACTIONS.REJECT_EDIT_ACCESS, { fileId, fileName });
+  });
+
+  socket.on(ACTIONS.ACTIVE_EDITOR_CHANGED, ({ roomId, fileId }) => {
+    if (!roomState[roomId]) return;
+    const room = roomState[roomId];
+    if (!room.activeEditors) room.activeEditors = {};
+
+    const userName = userSocketMap[socket.id] || 'Unknown';
+
+    if (fileId) {
+      room.activeEditors[fileId] = { socketId: socket.id, userName };
+    } else {
+      // If fileId is null, user closed all files, so remove them from any file they were editing
+      for (const [fId, editor] of Object.entries(room.activeEditors)) {
+        if (editor.socketId === socket.id) {
+          delete room.activeEditors[fId];
+        }
+      }
+    }
+
+    io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+      fileLocks: room.fileLocks || {},
+      activeEditors: room.activeEditors
+    });
+  });
+
+
   socket.on('disconnecting', () => {
     const rooms = [...socket.rooms];
     rooms.forEach((roomId) => {
@@ -404,6 +546,45 @@ io.on('connection', (socket) => {
       if (roomState[roomId]) {
         const clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
         socket.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+      }
+
+      // Clean up file locks owned by the disconnecting client
+      if (roomState[roomId] && roomState[roomId].fileLocks) {
+        let lockChanged = false;
+        for (const [fId, lock] of Object.entries(roomState[roomId].fileLocks)) {
+          if (lock.socketId === socket.id) {
+            delete roomState[roomId].fileLocks[fId];
+            lockChanged = true;
+            io.to(roomId).emit(ACTIONS.FILE_UNLOCKED, { fileId: fId });
+          } else if (lock.allowedUsers && lock.allowedUsers[socket.id]) {
+            // Remove user from allowed list
+            delete lock.allowedUsers[socket.id];
+            lockChanged = true;
+          }
+        }
+        if (lockChanged) {
+          io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+            fileLocks: roomState[roomId].fileLocks,
+            activeEditors: roomState[roomId].activeEditors || {}
+          });
+        }
+      }
+
+      // Clean up active editors
+      if (roomState[roomId] && roomState[roomId].activeEditors) {
+        let editorChanged = false;
+        for (const [fId, editor] of Object.entries(roomState[roomId].activeEditors)) {
+          if (editor.socketId === socket.id) {
+            delete roomState[roomId].activeEditors[fId];
+            editorChanged = true;
+          }
+        }
+        if (editorChanged) {
+          io.to(roomId).emit(ACTIONS.LOCK_STATUS_UPDATE, {
+            fileLocks: roomState[roomId].fileLocks || {},
+            activeEditors: roomState[roomId].activeEditors
+          });
+        }
       }
     });
     delete userSocketMap[socket.id];

@@ -2158,3 +2158,138 @@ body[data-theme='light'] .console-separator::after {
   50% { transform: scale(1.1); }
   100% { transform: scale(1); }
 }
+
+/* 🔒 File Lock & Edit Access Request System Styles */
+.fs-node-row {
+  border-left: 2.5px solid transparent;
+}
+
+.fs-node-locked {
+  border-left-color: #ff5555;
+  background: rgba(255, 85, 85, 0.03);
+}
+
+.fs-node-locked-by-me {
+  border-left-color: #4aed88;
+  background: rgba(74, 237, 136, 0.03);
+}
+
+.fs-node-locked-allowed {
+  border-left-color: #ffd700;
+  background: rgba(255, 215, 0, 0.03);
+}
+
+.file-lock-indicator {
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-lock-indicator.lock-me {
+  color: #4aed88;
+}
+
+.file-lock-indicator.lock-allowed {
+  color: #ffd700;
+}
+
+.file-lock-indicator.lock-other {
+  color: #ff5555;
+}
+
+.tab-lock-indicator {
+  color: #ff5555;
+  display: inline-flex;
+  align-items: center;
+}
+
+.currently-editing-presence {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8be9fd;
+  background: rgba(139, 233, 253, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(139, 233, 253, 0.2);
+}
+
+.editor-lock-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.editor-lock-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lock-action-btn:hover {
+  border-color: #8be9fd;
+  color: #8be9fd;
+  background: rgba(139, 233, 253, 0.05);
+}
+
+.unlock-action-btn {
+  border-color: #ff5555;
+  color: #ff5555;
+  background: rgba(255, 85, 85, 0.05);
+}
+
+.unlock-action-btn:hover {
+  background: #ff5555;
+  color: #fff;
+}
+
+.request-action-btn {
+  border-color: #ffd700;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.request-action-btn:hover {
+  background: #ffd700;
+  color: #1c1e29;
+}
+
+.readonly-badge.lock-banner {
+  background: #ff5555;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.lock-banner-request-btn {
+  background: #fff;
+  color: #ff5555;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.lock-banner-request-btn:hover {
+  background: #f1f1f1;
+}
+

@@ -25,6 +25,14 @@ const ACTIONS = {
     // Group Chat
     CHAT_SEND: 'chat_send',
     CHAT_RECEIVE: 'chat_receive',
+    // File Lock & Edit Access Request
+    FILE_LOCKED: 'file_locked',
+    FILE_UNLOCKED: 'file_unlocked',
+    REQUEST_EDIT_ACCESS: 'request_edit_access',
+    APPROVE_EDIT_ACCESS: 'approve_edit_access',
+    REJECT_EDIT_ACCESS: 'reject_edit_access',
+    ACTIVE_EDITOR_CHANGED: 'active_editor_changed',
+    LOCK_STATUS_UPDATE: 'lock_status_update',
 };
 
 module.exports = ACTIONS;

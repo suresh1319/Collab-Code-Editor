@@ -147,6 +147,11 @@ const EditorPage = () => {
     const [openFiles, setOpenFiles] = useState([]);
     const [activeFileId, setActiveFileId] = useState(null);
 
+    // File locking state
+    const [fileLocks, setFileLocks] = useState({});
+    const [activeEditors, setActiveEditors] = useState({});
+    const fileSystemRef = useRef({});
+
     // Track file contents for download
     const fileContentsRef = useRef({});
     const [fileContentsSnapshot, setFileContentsSnapshot] = useState({});
@@ -246,6 +251,76 @@ const EditorPage = () => {
                 toast.error('Your edit request was denied.');
             });
 
+            socketRef.current.on(ACTIONS.LOCK_STATUS_UPDATE, ({ fileLocks: locks, activeEditors: editors }) => {
+                setFileLocks(locks || {});
+                setActiveEditors(editors || {});
+            });
+
+            socketRef.current.on(ACTIONS.FILE_LOCKED, ({ fileId, userName }) => {
+                // Wait: fileSystem state might be delayed or we can look it up in fileSystem state
+                // Since this callback is inside useEffect, to get the fresh fileSystem we can read it from state,
+                // but standard React state in useEffect callbacks can be stale.
+                // However, we can use setFileSystem callback or just look it up. Alternatively, let's keep it simple
+                // or read file name using state updater or just show "File locked".
+                // Let's use a functional state update or just show the filename if possible.
+                // Actually, let's query the fileSystem state. In React, a state read inside a socket listener
+                // created on mount will be stale (empty object) if it's not a ref.
+                // Ah! We can use a ref for fileSystem! Or we can have the server send the filename with the event!
+                // Wait! In server.js, we did:
+                // io.to(roomId).emit(ACTIONS.FILE_LOCKED, { fileId, socketId: socket.id, userName });
+                // We didn't send the filename, but wait! We can easily get the filename by looking up the state
+                // using a ref or just by sending the filename from the server.
+                // Let's see: if we use a ref for fileSystem, it's very easy:
+                // const fileSystemRef = useRef({});
+                // and keep it updated. But wait! We already have the file ID. We can just display:
+                // `File locked by ${userName}` or similar, or we can look it up from the current state.
+                // Wait, if we use a functional state update, we can't easily toast from it.
+                // Let's look up if there's a simple way: we can just store fileSystem in a ref `fileSystemRef`
+                // and update `fileSystemRef.current = fs` whenever `setFileSystem(fs)` is called!
+                // Yes! That is a very standard React pattern to access fresh state in event listeners.
+                // Let's declare `fileSystemRef` and keep it updated!
+                // Let's write the handler using `fileSystemRef.current[fileId]?.name`:
+                const name = fileSystemRef.current?.[fileId]?.name || 'a file';
+                toast.success(`${userName} locked ${name}`, { icon: '🔒' });
+            });
+
+            socketRef.current.on(ACTIONS.FILE_UNLOCKED, ({ fileId }) => {
+                const name = fileSystemRef.current?.[fileId]?.name || 'A file';
+                toast.success(`${name} unlocked`, { icon: '🔓' });
+            });
+
+            socketRef.current.on(ACTIONS.REQUEST_EDIT_ACCESS, ({ requesterSocketId, requesterName, fileId, fileName }) => {
+                toast((t) => (
+                    <div>
+                        <b>{requesterName}</b> requested edit access for <b>{fileName}</b>.<br /><br />
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => {
+                                socketRef.current.emit(ACTIONS.APPROVE_EDIT_ACCESS, { roomId, fileId, requesterSocketId });
+                                toast.dismiss(t.id);
+                            }} style={{ background: '#50fa7b', color: '#1c1e29', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Approve
+                            </button>
+                            <button onClick={() => {
+                                socketRef.current.emit(ACTIONS.REJECT_EDIT_ACCESS, { roomId, fileId, requesterSocketId });
+                                toast.dismiss(t.id);
+                            }}
+                                style={{ background: '#ff5555', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                ), { duration: 15000, position: 'top-center' });
+            });
+
+            socketRef.current.on(ACTIONS.APPROVE_EDIT_ACCESS, ({ fileId }) => {
+                const name = fileSystemRef.current?.[fileId]?.name || 'the file';
+                toast.success(`Your request to edit ${name} was approved!`, { icon: '🔓' });
+            });
+
+            socketRef.current.on(ACTIONS.REJECT_EDIT_ACCESS, ({ fileId, fileName }) => {
+                toast.error(`Your request to edit ${fileName} was rejected.`, { icon: '🔒' });
+            });
+
             socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, userName }) => {
                 toast.success(`${userName} left the room.`);
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
@@ -281,6 +356,7 @@ const EditorPage = () => {
 
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
+                fileSystemRef.current = fs; // Keep ref in sync
                 if (fileContents && typeof fileContents === 'object') {
                     Object.entries(fileContents).forEach(([k, v]) => {
                         if (!(k in initialContentsRef.current)) {
@@ -350,9 +426,37 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.PERMISSION_DENIED);
                 socketRef.current.off(ACTIONS.ADMIN_TOKEN);
                 socketRef.current.off(ACTIONS.CHAT_RECEIVE);
+                socketRef.current.off(ACTIONS.LOCK_STATUS_UPDATE);
+                socketRef.current.off(ACTIONS.FILE_LOCKED);
+                socketRef.current.off(ACTIONS.FILE_UNLOCKED);
+                socketRef.current.off(ACTIONS.REQUEST_EDIT_ACCESS);
+                socketRef.current.off(ACTIONS.APPROVE_EDIT_ACCESS);
+                socketRef.current.off(ACTIONS.REJECT_EDIT_ACCESS);
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (socketRef.current && socketReady) {
+            socketRef.current.emit(ACTIONS.ACTIVE_EDITOR_CHANGED, { roomId, fileId: activeFileId });
+        }
+    }, [activeFileId, socketReady, roomId]);
+
+    const handleLockFile = useCallback((fileId) => {
+        if (!socketRef.current) return;
+        socketRef.current.emit(ACTIONS.FILE_LOCKED, { roomId, fileId });
+    }, [roomId]);
+
+    const handleUnlockFile = useCallback((fileId) => {
+        if (!socketRef.current) return;
+        socketRef.current.emit(ACTIONS.FILE_UNLOCKED, { roomId, fileId });
+    }, [roomId]);
+
+    const handleRequestEditAccess = useCallback((fileId) => {
+        if (!socketRef.current) return;
+        socketRef.current.emit(ACTIONS.REQUEST_EDIT_ACCESS, { roomId, fileId });
+        toast.success("Edit access request sent to lock owner.");
+    }, [roomId]);
 
     // ---- File system event handlers ----
     // Each handler checks canWrite before emitting to avoid sending events
@@ -638,6 +742,14 @@ const EditorPage = () => {
 
     const activeFile = activeFileId ? fileSystem[activeFileId] : null;
 
+    const fileLock = fileLocks[activeFileId];
+    const isLocked = !!fileLock;
+    const isLockedByMe = isLocked && fileLock.socketId === socketRef.current?.id;
+    const isAllowedEditor = isLocked && fileLock.allowedUsers?.[socketRef.current?.id] === true;
+    
+    // User can edit if they have room write permissions AND (file is not locked OR locked by them OR they are approved editor OR they are room admin)
+    const hasFileEditPermission = canWrite && (!isLocked || isLockedByMe || isAllowedEditor || isAdmin);
+
     return (
         <div className="app-container">
             {/* ── Top Navbar (Reverted to Edge-to-Edge Layout) ── */}
@@ -832,6 +944,8 @@ const EditorPage = () => {
                                         onDeleteNode={handleDeleteNode}
                                         onRenameNode={handleRenameNode}
                                         canWrite={canWrite}
+                                        fileLocks={fileLocks}
+                                        socketId={socketRef.current?.id}
                                         hideTitle
                                     />
                                 </div>
@@ -887,6 +1001,7 @@ const EditorPage = () => {
                         activeFileId={activeFileId}
                         onTabClick={handleFileClick}
                         onTabClose={handleTabClose}
+                        fileLocks={fileLocks}
                     />
 
                     {/* Editor — flex:1 fills space above console */}
@@ -901,10 +1016,17 @@ const EditorPage = () => {
                                 onCodeChange={handleCodeChange}
                                 onEditorReady={handleEditorReady}
                                 userName={userName}
-                                canWrite={canWrite}
+                                canWrite={hasFileEditPermission}
                                 editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
                                 initialContent={initialContentsRef.current[activeFileId] || ''}
                                 fileContentsSnapshot={fileContentsSnapshot}
+                                fileLocks={fileLocks}
+                                activeEditors={activeEditors}
+                                onLockFile={handleLockFile}
+                                onUnlockFile={handleUnlockFile}
+                                onRequestEditAccess={handleRequestEditAccess}
+                                isAdmin={isAdmin}
+                                roomCanWrite={canWrite}
                             />
                         ) : (
                             <div className="editor-empty">
@@ -918,8 +1040,19 @@ const EditorPage = () => {
                             </div>
                         )}
 
-                        {!canWrite && activeFileId && (
-                            <div className="readonly-badge">Read-Only Mode</div>
+                        {activeFileId && !hasFileEditPermission && (
+                            isLocked ? (
+                                <div className="readonly-badge lock-banner">
+                                    <span>🔒 Locked by {fileLock.userName}. </span>
+                                    {canWrite && (
+                                        <button className="lock-banner-request-btn" onClick={() => handleRequestEditAccess(activeFileId)}>
+                                            Request Edit Access
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="readonly-badge">Read-Only Mode</div>
+                            )
                         )}
                     </div>
 
