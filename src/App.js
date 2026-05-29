@@ -6,11 +6,11 @@ import EditorPage from './pages/EditorPage';
 import NotFound from './pages/NotFound';
 import {Toaster} from "react-hot-toast";
 import LandingPage from './pages/LandingPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
-    <>
-    <div>
+    <ErrorBoundary>
       <Toaster
       position='top-right'
       
@@ -26,7 +26,6 @@ function App() {
           },
         },
       }}></Toaster>
-    </div>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path='/' element={<LandingPage />}></Route>
@@ -35,7 +34,7 @@ function App() {
           <Route path='*' element={<NotFound/>}></Route>
         </Routes>
       </BrowserRouter>
-    </>
+    </ErrorBoundary>
   );
 }
 

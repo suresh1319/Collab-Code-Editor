@@ -175,7 +175,8 @@ export function useCodeRunner() {
         // ── HTML: render in a new browser tab ─────────────────────
         const blob = new Blob([code], { type: "text/html" });
         const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
+        const previewWindow = window.open(url, "_blank", "noopener,noreferrer");
+        if (previewWindow) previewWindow.focus();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
         setConsoleLogs((prev) => [
           ...prev,

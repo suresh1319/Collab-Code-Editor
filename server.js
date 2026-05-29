@@ -64,6 +64,12 @@ const roomState = {};
 const roomCleanupTimers = {};
 const ROOM_CLEANUP_DELAY_MS = 60000;
 
+// Delayed admin transfer to prevent privilege loss on page refresh.
+// When the admin refreshes, their socket disconnects before the new one connects.
+// A grace period allows them to rejoin and reclaim admin before transfer occurs.
+const adminTransferTimers = {};
+const ADMIN_TRANSFER_DELAY_MS = 10000;
+
 // ---- Permission helper ----
 // Returns true if socket is the room admin OR has been granted write access.
 function canWriteToRoom(socket, roomId) {
@@ -96,7 +102,7 @@ function getAllConnectedClients(roomId) {
 }
 
 io.on('connection', (socket) => {
-  socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
+  socket.on(ACTIONS.JOIN, ({ roomId, userName, adminToken }) => {
     // If there was a pending cleanup for this room (e.g. after a refresh), cancel it.
     if (roomCleanupTimers[roomId]) {
       clearTimeout(roomCleanupTimers[roomId]);
@@ -107,15 +113,35 @@ io.on('connection', (socket) => {
     userSocketMap[socket.id] = userName;
     socket.join(roomId);
 
-    // Initialize room state if it doesn't exist
+    // Initialize room state if it doesn't exist (first user = room creator = admin)
     if (!roomState[roomId]) {
+      const token = uuid(); // crypto.randomUUID() — secure, unguessable
       roomState[roomId] = {
         admin: socket.id,
+        adminToken: token,
         permissions: {},
         fileSystem: createDefaultFileSystem(),
         fileContents: {}, // stores uploaded file contents keyed by fileId
+        chatMessages: [], // stores group chat messages
       };
+      // Send the ownership token ONLY to the admin socket.
+      // No other client ever receives this value.
+      socket.emit(ACTIONS.ADMIN_TOKEN, { adminToken: token });
+    } else if (adminToken && adminToken === roomState[roomId].adminToken) {
+      // The legitimate admin is reconnecting (e.g. after a page refresh).
+      // The client-provided token matches the server-stored token — reclaim admin.
+      roomState[roomId].admin = socket.id;
+      roomState[roomId].permissions[socket.id] = true;
+      // Cancel the pending admin transfer — verified owner is back.
+      if (adminTransferTimers[roomId]) {
+        clearTimeout(adminTransferTimers[roomId]);
+        delete adminTransferTimers[roomId];
+      }
+      // Re-send the token so the client can re-persist it if needed.
+      socket.emit(ACTIONS.ADMIN_TOKEN, { adminToken: roomState[roomId].adminToken });
     }
+    // NOTE: If adminToken is absent or invalid, the transfer timer is NOT cancelled.
+    // This prevents non-admin joins from interfering with pending admin reclaim.
 
     // Default permission
     if (roomState[roomId].admin === socket.id) {
@@ -124,24 +150,26 @@ io.on('connection', (socket) => {
       roomState[roomId].permissions[socket.id] = false;
     }
 
-    let clients = getAllConnectedClients(roomId);
-    clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+    const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.JOINED, { clients, userName, socketId: socket.id });
 
-    // Send current file system AND any stored file contents in one atomic emit.
-    // Combining both into a single frame eliminates the race where FS_SYNC triggers
-    // an Editor mount before FS_CONTENTS_SYNC has seeded initialContentsRef.
+    // Combine and send current file system and stored file contents.
     socket.emit(ACTIONS.FS_SYNC, {
       fileSystem: roomState[roomId].fileSystem,
       fileContents: roomState[roomId].fileContents,
     });
+
+    // Sync chat history to newly joined client
+    if (roomState[roomId].chatMessages.length > 0) {
+      socket.emit(ACTIONS.CHAT_RECEIVE, roomState[roomId].chatMessages);
+    }
   });
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -158,7 +186,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -186,7 +214,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) return;
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to modify files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to modify files in this room.' });
       return;
     }
     const fs = roomState[roomId].fileSystem;
@@ -206,7 +234,7 @@ io.on('connection', (socket) => {
     if (!roomState[roomId]) { reply(false, 'Room not found.'); return; }
     // Server-side permission check — reject read-only users
     if (!canWriteToRoom(socket, roomId)) {
-      socket.emit('error', { message: 'You do not have permission to upload files in this room.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'You do not have permission to upload files in this room.' });
       reply(false, 'You do not have permission to upload files in this room.');
       return;
     }
@@ -252,8 +280,7 @@ io.on('connection', (socket) => {
   socket.on(ACTIONS.TOGGLE_PERMISSION, ({ roomId, targetSocketId, canWrite }) => {
     if (roomState[roomId] && roomState[roomId].admin === socket.id) {
       roomState[roomId].permissions[targetSocketId] = canWrite;
-      let clients = getAllConnectedClients(roomId);
-      clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+      const clients = getAllConnectedClients(roomId);
       io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
     }
   });
@@ -274,8 +301,7 @@ io.on('connection', (socket) => {
 
     roomState[roomId].permissions[requesterSocketId] = true;
 
-    let clients = getAllConnectedClients(roomId);
-    clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+    const clients = getAllConnectedClients(roomId);
     io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
 
     io.to(requesterSocketId).emit(ACTIONS.APPROVE_CODE_EDIT, {
@@ -301,18 +327,71 @@ io.on('connection', (socket) => {
     io.to(socketId).emit(ACTIONS.CODE_CHANGE, { code });
   });
 
+  // ---- Group Chat ----
+  socket.on(ACTIONS.CHAT_SEND, ({ roomId, message }) => {
+    if (!roomState[roomId]) return;
+    
+    // Validate message
+    if (!message || typeof message !== 'string') return;
+    const trimmedMessage = message.trim();
+    if (trimmedMessage.length === 0) return;
+    const finalMessage = trimmedMessage.slice(0, 1000); // Max 1000 chars
+    
+    const chatMsg = {
+      id: uuid(),
+      userName: userSocketMap[socket.id] || 'Unknown',
+      message: finalMessage,
+      timestamp: new Date().toISOString(),
+      socketId: socket.id
+    };
+    
+    // Store message server-side (cap at 200 messages)
+    roomState[roomId].chatMessages.push(chatMsg);
+    if (roomState[roomId].chatMessages.length > 200) {
+      roomState[roomId].chatMessages.shift(); // Remove oldest
+    }
+    
+    // Broadcast to entire room (including sender)
+    io.to(roomId).emit(ACTIONS.CHAT_RECEIVE, chatMsg);
+  });
+
   socket.on('disconnecting', () => {
     const rooms = [...socket.rooms];
     rooms.forEach((roomId) => {
       if (roomState[roomId] && roomState[roomId].admin === socket.id) {
         const clientsInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);
         if (clientsInRoom.length > 0) {
-          roomState[roomId].admin = clientsInRoom[0];
-          roomState[roomId].permissions[clientsInRoom[0]] = true;
+          // Don't transfer admin immediately — the admin may be refreshing.
+          // Use a grace period so they can rejoin and reclaim ownership.
+          if (!adminTransferTimers[roomId]) {
+            adminTransferTimers[roomId] = setTimeout(() => {
+              delete adminTransferTimers[roomId];
+              if (!roomState[roomId]) return;
+              // Only transfer if admin socket is still disconnected
+              const currentRoom = io.sockets.adapter.rooms.get(roomId);
+              if (currentRoom && currentRoom.has(roomState[roomId].admin)) return;
+              // Transfer admin to the first remaining connected client
+              const remaining = Array.from(currentRoom || []);
+              if (remaining.length > 0) {
+                roomState[roomId].admin = remaining[0];
+                roomState[roomId].permissions[remaining[0]] = true;
+                // Rotate the admin token so the previous admin can never reclaim.
+                roomState[roomId].adminToken = uuid();
+                // Deliver the new token to the new admin only.
+                io.to(remaining[0]).emit(ACTIONS.ADMIN_TOKEN, { adminToken: roomState[roomId].adminToken });
+                const clients = getAllConnectedClients(roomId);
+                io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+              }
+            }, ADMIN_TRANSFER_DELAY_MS);
+          }
         } else {
           roomCleanupTimers[roomId] = setTimeout(() => {
             delete roomState[roomId];
             delete roomCleanupTimers[roomId];
+            if (adminTransferTimers[roomId]) {
+              clearTimeout(adminTransferTimers[roomId]);
+              delete adminTransferTimers[roomId];
+            }
           }, ROOM_CLEANUP_DELAY_MS);
         }
       }
@@ -323,8 +402,7 @@ io.on('connection', (socket) => {
       });
 
       if (roomState[roomId]) {
-        let clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
-        clients = Array.from(new Map(clients.map(client => [client.userName, client])).values());
+        const clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);
         socket.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
       }
     });

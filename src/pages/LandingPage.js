@@ -47,6 +47,13 @@ const LandingPage = () => {
           <span className="logo-ce">CE</span>
         </div>
 
+        <div className="landing-navbar-right">
+        <div className="landing-nav-links">
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#cta">Launch Editor</a>
+        </div>
+
         <div className="landing-nav-actions">
           <button
             className="landing-outline-btn"
@@ -62,6 +69,7 @@ const LandingPage = () => {
           >
             Get Started
           </button>
+        </div>
         </div>
       </nav>
 
@@ -103,7 +111,7 @@ const LandingPage = () => {
       </section>
 
       {/* Features */}
-      <section className="landing-section">
+      <section id="features" className="landing-section">
         <div className="section-header">
           <h2>Features</h2>
           <p>Everything needed for collaborative development workflows.</p>
@@ -146,35 +154,47 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works */}
-      <section className="landing-section">
+      <section id="how-it-works" className="landing-section">
         <div className="section-header">
           <h2>How It Works</h2>
           <p>Start collaborating in just a few simple steps.</p>
         </div>
 
         <div className="steps-grid">
+          <div className="step-wrapper">
           <div className="step-card">
-            <div className="step-number">1</div>
+            <div className="step-number">
+              <span>1</span>
+            </div>
             <h3>Create a Room</h3>
             <p>Generate a collaboration room instantly with a unique ID.</p>
           </div>
+          </div>
 
+          <div className="step-wrapper">
           <div className="step-card">
-            <div className="step-number">2</div>
+            <div className="step-number">
+              <span>2</span>
+            </div>
             <h3>Invite Your Team</h3>
             <p>Share the room link and bring your collaborators together.</p>
           </div>
+          </div>
 
+          <div className="step-wrapper">
           <div className="step-card">
-            <div className="step-number">3</div>
+            <div className="step-number">
+              <span>3</span>
+            </div>
             <h3>Code in Real-Time</h3>
             <p>Write, edit, and manage projects together seamlessly.</p>
+          </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="landing-cta">
+      <section id="cta" className="landing-cta">
         <div className="cta-box">
           <Code2 size={40} />
           <h2>Ready to Start Collaborating?</h2>

@@ -14,6 +14,7 @@ import {
     ChevronRight,
     MessageSquare,
     Terminal,
+    UserPlus,
 } from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
@@ -23,6 +24,8 @@ import FileTabs from '../components/FileTabs';
 import InviteModal from '../components/InviteModal';
 import ConfirmModal from '../components/ConfirmModal';
 import LeaveRoomModal from '../components/LeaveRoomModal';
+import RequestAccessModal from '../components/RequestAccessModal';
+import ChatPanel from '../components/ChatPanel';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
@@ -43,9 +46,18 @@ const EditorPage = () => {
     const [showInvite, setShowInvite] = useState(false);
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
     const [showLeaveModal, setShowLeaveModal] = useState(false);
-    const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'upload' | 'share' | etc.
+    const [showRequestAccessModal, setShowRequestAccessModal] = useState(false);
+    const [activePanel, setActivePanel] = useState('explorer'); // 'explorer' | 'users' | 'chat' | 'upload' | 'share' | etc.
     const [lastPersistentPanel, setLastPersistentPanel] = useState('explorer');
     const [consoleOpen, setConsoleOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
+    const activePanelRef = useRef(activePanel);
+
+    useEffect(() => {
+        activePanelRef.current = activePanel;
+        if (activePanel === 'chat') setUnreadChatCount(0);
+    }, [activePanel]);
     const [sideWidth, setSideWidth] = useState(() => {
         const saved = localStorage.getItem('sideWidth');
         return saved ? Number(saved) : 260;
@@ -121,6 +133,18 @@ const EditorPage = () => {
     const { roomId } = useParams();
     const reactNavigator = useNavigate();
 
+    // Resolve userName: prefer location.state (fresh navigation), fall back to
+    // sessionStorage (page reload).  Persist so reloads always have a userName.
+    const userName = React.useMemo(() => {
+        const fromState = location.state?.userName;
+        const storageKey = `collabce_user_${roomId}`;
+        if (fromState) {
+            try { sessionStorage.setItem(storageKey, fromState); } catch (_) { /* quota */ }
+            return fromState;
+        }
+        try { return sessionStorage.getItem(storageKey) || ''; } catch (_) { return ''; }
+    }, [location.state, roomId]);
+
     const [clients, setClients] = useState([]);
     const [socketReady, setSocketReady] = useState(false);
     const [canWrite, setCanWrite] = useState(false);
@@ -139,9 +163,20 @@ const EditorPage = () => {
     const uploadFileInputRef = useRef(null);
     const uploadFolderInputRef = useRef(null);
 
+    // Secure admin ownership token — received from the server, never derived from user input.
+    // Persisted in sessionStorage so it survives page reloads within the same browser session.
+    const adminTokenRef = useRef(() => {
+        try { return sessionStorage.getItem(`collabce_adminToken_${roomId}`) || null; } catch (_) { return null; }
+    });
+
     useEffect(() => {
-        const init = async () => {
-            socketRef.current = await initSocket();
+        // Resolve admin token from sessionStorage on mount (survives page reloads)
+        try {
+            adminTokenRef.current = sessionStorage.getItem(`collabce_adminToken_${roomId}`) || null;
+        } catch (_) { adminTokenRef.current = null; }
+
+        const init = () => {
+            socketRef.current = initSocket();
             socketRef.current.on('connect_error', handleErrors);
             socketRef.current.on('connect_failed', handleErrors);
 
@@ -155,8 +190,16 @@ const EditorPage = () => {
                 setSocketReady(true);
                 socketRef.current.emit(ACTIONS.JOIN, {
                     roomId,
-                    userName: location.state?.userName,
+                    userName,
+                    adminToken: adminTokenRef.current,
                 });
+            });
+
+            // Listen for the server-issued admin ownership token.
+            // This fires only for the admin — on room creation, reconnect, or admin transfer.
+            socketRef.current.on(ACTIONS.ADMIN_TOKEN, ({ adminToken }) => {
+                adminTokenRef.current = adminToken;
+                try { sessionStorage.setItem(`collabce_adminToken_${roomId}`, adminToken); } catch (_) { /* quota */ }
             });
 
             const updateLocalPermissions = (updatedClients) => {
@@ -164,9 +207,10 @@ const EditorPage = () => {
                 if (me) { setCanWrite(me.canWrite); setIsAdmin(me.isAdmin); }
             };
 
-            socketRef.current.on(ACTIONS.JOINED, ({ clients, userName, socketId }) => {
-                if (userName !== location.state?.userName && socketId !== socketRef.current.id) {
-                    toast.success(`${userName} joined the room.`);
+            socketRef.current.on(ACTIONS.JOINED, ({ clients, userName: joinedUserName, socketId }) => {
+                if (joinedUserName !== userName && socketId !== socketRef.current.id) {
+                    toast.success(`${joinedUserName} joined the room.`);
+                    setChatMessages(prev => [...prev, { id: uuid(), message: `${joinedUserName} joined the room`, isSystem: true, timestamp: new Date().toISOString() }]);
                 }
                 setClients(clients);
                 updateLocalPermissions(clients);
@@ -213,6 +257,7 @@ const EditorPage = () => {
             socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, userName }) => {
                 toast.success(`${userName} left the room.`);
                 setClients(prev => prev.filter(client => client.socketId !== socketId));
+                setChatMessages(prev => [...prev, { id: uuid(), message: `${userName} left the room`, isSystem: true, timestamp: new Date().toISOString() }]);
             });
 
             // Show a toast when the server rejects an action due to insufficient permissions.
@@ -226,6 +271,20 @@ const EditorPage = () => {
                             ? payload.message
                             : 'Permission denied.';
                 toast.error(message);
+            });
+
+            socketRef.current.on(ACTIONS.CHAT_RECEIVE, (payload) => {
+                if (Array.isArray(payload)) {
+                    setChatMessages(payload);
+                } else {
+                    setChatMessages(prev => {
+                        if (prev.find(m => m.id === payload.id)) return prev;
+                        return [...prev, payload];
+                    });
+                    if (activePanelRef.current !== 'chat') {
+                        setUnreadChatCount(prev => prev + 1);
+                    }
+                }
             });
 
             // File system sync
@@ -286,6 +345,9 @@ const EditorPage = () => {
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
+                socketRef.current.off('connect');
+                socketRef.current.off('connect_error');
+                socketRef.current.off('connect_failed');
                 socketRef.current.off(ACTIONS.JOINED);
                 socketRef.current.off(ACTIONS.DISCONNECTED);
                 socketRef.current.off(ACTIONS.PERMISSION_CHANGED);
@@ -294,6 +356,8 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DENY_CODE_EDIT);
                 socketRef.current.off(ACTIONS.FS_SYNC);
                 socketRef.current.off(ACTIONS.PERMISSION_DENIED);
+                socketRef.current.off(ACTIONS.ADMIN_TOKEN);
+                socketRef.current.off(ACTIONS.CHAT_RECEIVE);
             }
         };
     }, []);
@@ -305,6 +369,11 @@ const EditorPage = () => {
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
         socketRef.current?.emit(ACTIONS.FS_CREATE_NODE, { roomId, node });
     }, [roomId, canWrite]);
+
+    const handleChatSend = useCallback((message) => {
+        if (!socketRef.current) return;
+        socketRef.current.emit(ACTIONS.CHAT_SEND, { roomId, message });
+    }, [roomId]);
 
     const handleDeleteNode = useCallback((nodeId) => {
         if (!canWrite) { toast.error('You do not have write permission.'); return; }
@@ -419,10 +488,14 @@ const EditorPage = () => {
     }
 
     function requestWriteAccess() {
-        const message = prompt('Enter a message for the admin:');
+        setShowRequestAccessModal(true);
+    }
+
+    function handleSendWriteAccessRequest(message) {
         if (message) {
-            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName: location.state?.userName });
+            socketRef.current.emit(ACTIONS.REQUEST_WRITE_ACCESS, { roomId, message, userName });
             toast.success('Request sent to admin!');
+            setShowRequestAccessModal(false);
         }
     }
 
@@ -572,7 +645,7 @@ const EditorPage = () => {
         setActivePanel(lastPersistentPanel);
     }
 
-    if (!location.state) return <Navigate to="/" />;
+    if (!userName) return <Navigate to="/" />;
 
     const activeFile = activeFileId ? fileSystem[activeFileId] : null;
 
@@ -654,6 +727,20 @@ const EditorPage = () => {
                             <Users size={22} strokeWidth={1.5} />
                             {clients.length > 0 && <span className="activity-badge">{clients.length}</span>}
                         </button>
+                        <button
+                            className={`activity-btn ${activePanel === 'chat' ? 'activity-btn--active' : ''}`}
+                            onClick={() => {
+                                const next = activePanel === 'chat' ? 'none' : 'chat';
+                                setActivePanel(next);
+                                if (next !== 'none') setLastPersistentPanel(next);
+                            }}
+                            title="Group Chat"
+                        >
+                            <MessageSquare size={22} strokeWidth={1.5} />
+                            {unreadChatCount > 0 && activePanel !== 'chat' && (
+                                <span className="activity-badge chat-unread-badge">{unreadChatCount}</span>
+                            )}
+                        </button>
                     </div>
 
                     <div className="activity-bar-bottom">
@@ -700,7 +787,7 @@ const EditorPage = () => {
                             }} 
                             title="Invite Friends"
                         >
-                            <MessageSquare size={22} strokeWidth={1.5} />
+                            <UserPlus size={22} strokeWidth={1.5} />
                         </button>
                         <button 
                             className={`activity-btn ${activePanel === 'secrets' ? 'activity-btn--active' : ''}`} 
@@ -726,7 +813,7 @@ const EditorPage = () => {
                 </div>
 
                 {/* ── Side Panel ── */}
-                {['explorer', 'users'].includes(activePanel) && (
+                {['explorer', 'users', 'chat'].includes(activePanel) && (
                     <>
                         {isMobileViewport && (
                             <button
@@ -798,6 +885,15 @@ const EditorPage = () => {
                                 </div>
                             </>
                         )}
+                        {activePanel === 'chat' && (
+                            <ChatPanel
+                                socketRef={socketRef}
+                                roomId={roomId}
+                                userName={userName}
+                                messages={chatMessages}
+                                onSendMessage={handleChatSend}
+                            />
+                        )}
                     </div>
                     {!isMobileViewport && <div className="resizer" onMouseDown={startResizing} />}
                 </>
@@ -826,7 +922,7 @@ const EditorPage = () => {
                                 fileName={activeFile.name}
                                 onCodeChange={handleCodeChange}
                                 onEditorReady={handleEditorReady}
-                                userName={location.state?.userName}
+                                userName={userName}
                                 canWrite={canWrite}
                                 editorTheme={theme === 'light' ? 'eclipse' : 'dracula'}
                                 initialContent={initialContentsRef.current[activeFileId] || ''}
@@ -889,6 +985,12 @@ const EditorPage = () => {
                     }}
                 />
             )}
+
+            <RequestAccessModal
+                isOpen={showRequestAccessModal}
+                onClose={() => setShowRequestAccessModal(false)}
+                onSubmit={handleSendWriteAccessRequest}
+            />
 
             {/* Hidden file inputs for upload */}
             <input
