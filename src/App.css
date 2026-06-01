@@ -2158,3 +2158,107 @@ body[data-theme='light'] .console-separator::after {
   50% { transform: scale(1.1); }
   100% { transform: scale(1); }
 }
+
+/* ---- Activity Feed ---- */
+.activity-feed-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.activity-logs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-log-item {
+  display: flex;
+  gap: 10px;
+  background: var(--bg-color, #1e1f29);
+  border: 1px solid var(--border-color, #343746);
+  border-radius: 8px;
+  padding: 10px 12px;
+  align-items: flex-start;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.activity-log-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transition: all 0.2s ease;
+}
+
+.activity-log-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: rgba(74, 237, 136, 0.3);
+}
+
+/* Color schemes for left accent bars */
+.activity-log-item--join::before { background: #50fa7b; }
+.activity-log-item--leave::before { background: #ff5555; }
+.activity-log-item--create::before { background: #50fa7b; }
+.activity-log-item--delete::before { background: #ff5555; }
+.activity-log-item--rename::before { background: #ffb86c; }
+.activity-log-item--upload::before { background: #8be9fd; }
+.activity-log-item--permission::before { background: #bd93f9; }
+
+.activity-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--input-bg, #282a36);
+  border: 1px solid var(--border-color, #343746);
+  flex-shrink: 0;
+}
+
+/* Icon custom classes */
+.activity-icon--join { color: #50fa7b; }
+.activity-icon--leave { color: #ff5555; }
+.activity-icon--create { color: #50fa7b; }
+.activity-icon--delete { color: #ff5555; }
+.activity-icon--rename { color: #ffb86c; }
+.activity-icon--upload { color: #8be9fd; }
+.activity-icon--permission { color: #bd93f9; }
+
+.activity-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.activity-message {
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-color, #f8f8f2);
+  margin: 0;
+  word-break: break-word;
+}
+
+.activity-time {
+  font-size: 0.65rem;
+  color: var(--text-color, #f8f8f2);
+  opacity: 0.45;
+  margin-top: 1px;
+}
+
+.activity-unread-badge {
+  background: #3b82f6 !important; /* Standout blue badge for activities */
+}
+

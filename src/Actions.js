@@ -25,6 +25,8 @@ const ACTIONS = {
     // Group Chat
     CHAT_SEND: 'chat_send',
     CHAT_RECEIVE: 'chat_receive',
+    // Activity Feed
+    ACTIVITY_RECEIVE: 'activity_receive',
 };
 
 module.exports = ACTIONS;
