@@ -15,6 +15,7 @@ import {
     MessageSquare,
     Terminal,
     UserPlus,
+    Activity,
 } from 'lucide-react';
 import ACTIONS from '../Actions';
 import Client from '../components/Client';
@@ -26,6 +27,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import LeaveRoomModal from '../components/LeaveRoomModal';
 import RequestAccessModal from '../components/RequestAccessModal';
 import ChatPanel from '../components/ChatPanel';
+import ActivityPanel from '../components/ActivityPanel';
 import { initSocket } from '../socket';
 import { downloadProject } from '../utils/downloadProject';
 import { v4 as uuid } from 'uuid';
@@ -51,11 +53,14 @@ const EditorPage = () => {
     const [consoleOpen, setConsoleOpen] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
+    const [activities, setActivities] = useState([]);
+    const [unreadActivityCount, setUnreadActivityCount] = useState(0);
     const activePanelRef = useRef(activePanel);
 
     useEffect(() => {
         activePanelRef.current = activePanel;
         if (activePanel === 'chat') setUnreadChatCount(0);
+        if (activePanel === 'activity') setUnreadActivityCount(0);
     }, [activePanel]);
     const [sideWidth, setSideWidth] = useState(() => {
         const saved = localStorage.getItem('sideWidth');
@@ -355,6 +360,20 @@ const EditorPage = () => {
                 }
             });
 
+            socketRef.current.on(ACTIONS.ACTIVITY_RECEIVE, (payload) => {
+                if (Array.isArray(payload)) {
+                    setActivities(payload);
+                } else {
+                    setActivities(prev => {
+                        if (prev.find(a => a.id === payload.id)) return prev;
+                        return [...prev, payload];
+                    });
+                    if (activePanelRef.current !== 'activity') {
+                        setUnreadActivityCount(prev => prev + 1);
+                    }
+                }
+            });
+
             // File system sync
             socketRef.current.on(ACTIONS.FS_SYNC, ({ fileSystem: fs, fileContents }) => {
                 fileSystemRef.current = fs; // Keep ref in sync
@@ -433,6 +452,7 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.REQUEST_EDIT_ACCESS);
                 socketRef.current.off(ACTIONS.APPROVE_EDIT_ACCESS);
                 socketRef.current.off(ACTIONS.REJECT_EDIT_ACCESS);
+                socketRef.current.off(ACTIONS.ACTIVITY_RECEIVE);
             }
         };
     }, []);
@@ -848,6 +868,20 @@ const EditorPage = () => {
                                 <span className="activity-badge chat-unread-badge">{unreadChatCount}</span>
                             )}
                         </button>
+                        <button
+                            className={`activity-btn ${activePanel === 'activity' ? 'activity-btn--active' : ''}`}
+                            onClick={() => {
+                                const next = activePanel === 'activity' ? 'none' : 'activity';
+                                setActivePanel(next);
+                                if (next !== 'none') setLastPersistentPanel(next);
+                            }}
+                            title="Activity Feed"
+                        >
+                            <Activity size={22} strokeWidth={1.5} />
+                            {unreadActivityCount > 0 && activePanel !== 'activity' && (
+                                <span className="activity-badge chat-unread-badge activity-unread-badge">{unreadActivityCount}</span>
+                            )}
+                        </button>
                     </div>
 
                     <div className="activity-bar-bottom">
@@ -920,7 +954,7 @@ const EditorPage = () => {
                 </div>
 
                 {/* ── Side Panel ── */}
-                {['explorer', 'users', 'chat'].includes(activePanel) && (
+                {['explorer', 'users', 'chat', 'activity'].includes(activePanel) && (
                     <>
                         <div className="side-panel" style={{ width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}>
                             {activePanel === 'explorer' && (
@@ -991,6 +1025,9 @@ const EditorPage = () => {
                                 messages={chatMessages}
                                 onSendMessage={handleChatSend}
                             />
+                        )}
+                        {activePanel === 'activity' && (
+                            <ActivityPanel activities={activities} />
                         )}
                     </div>
                     <div className="resizer" onMouseDown={startResizing} />

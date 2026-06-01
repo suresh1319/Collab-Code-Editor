@@ -79,6 +79,29 @@ function canWriteToRoom(socket, roomId) {
   return room.permissions?.[socket.id] === true;
 }
 
+// ---- Activity Feed Helper ----
+function logAndBroadcastActivity(roomId, socket, type, message, meta = {}) {
+  const room = roomState[roomId];
+  if (!room) return;
+
+  const activity = {
+    id: uuid(),
+    userId: socket.id,
+    userName: userSocketMap[socket.id] || 'Unknown',
+    type,
+    message,
+    timestamp: new Date().toISOString(),
+    meta
+  };
+
+  if (!room.activities) room.activities = [];
+  room.activities.push(activity);
+  if (room.activities.length > 50) {
+    room.activities.shift(); // Keep most recent 50 events
+  }
+  io.to(roomId).emit(ACTIONS.ACTIVITY_RECEIVE, activity);
+}
+
 // ---- File System Helpers ----
 function createDefaultFileSystem() {
   const rootId = 'root';
@@ -125,6 +148,7 @@ io.on('connection', (socket) => {
         chatMessages: [], // stores group chat messages
         fileLocks: {}, // Key: fileId, Value: { socketId, userName, allowedUsers }
         activeEditors: {}, // Key: fileId, Value: { socketId, userName }
+        activities: [],   // stores collaborative activity events
       };
       // Send the ownership token ONLY to the admin socket.
       // No other client ever receives this value.
@@ -171,6 +195,14 @@ io.on('connection', (socket) => {
     if (roomState[roomId].chatMessages.length > 0) {
       socket.emit(ACTIONS.CHAT_RECEIVE, roomState[roomId].chatMessages);
     }
+
+    // Sync activity history to newly joined client
+    if (roomState[roomId].activities && roomState[roomId].activities.length > 0) {
+      socket.emit(ACTIONS.ACTIVITY_RECEIVE, roomState[roomId].activities);
+    }
+
+    // Log the join activity (Fired after history sync so joiner receives history array first)
+    logAndBroadcastActivity(roomId, socket, 'join', `${userName} joined the room.`);
   });
 
   socket.on(ACTIONS.FS_CREATE_NODE, ({ roomId, node }) => {
@@ -188,6 +220,10 @@ io.on('connection', (socket) => {
       fs[node.parentId].children.push(node.id);
     }
     io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+
+    // Log the creation activity
+    const creatorName = userSocketMap[socket.id] || 'Unknown';
+    logAndBroadcastActivity(roomId, socket, 'create', `${creatorName} created ${node.type} "${node.name}"`, { node });
   });
 
   socket.on(ACTIONS.FS_DELETE_NODE, ({ roomId, nodeId }) => {
@@ -198,6 +234,11 @@ io.on('connection', (socket) => {
       return;
     }
     const fs = roomState[roomId].fileSystem;
+    const node = fs[nodeId];
+    if (!node) return;
+    const nodeName = node.name;
+    const nodeType = node.type;
+
     // Recursively collect all node ids to delete
     const toDelete = [];
     const collect = (id) => {
@@ -208,8 +249,7 @@ io.on('connection', (socket) => {
     };
     collect(nodeId);
     // Remove from parent
-    const node = fs[nodeId];
-    if (node && node.parentId && fs[node.parentId]) {
+    if (node.parentId && fs[node.parentId]) {
       fs[node.parentId].children = (fs[node.parentId].children || []).filter(c => c !== nodeId);
     }
     // Remove from fileSystem and evict any stored contents, locks, and active editors for deleted nodes.
@@ -234,6 +274,10 @@ io.on('connection', (socket) => {
         activeEditors: roomState[roomId].activeEditors
       });
     }
+
+    // Log the deletion activity
+    const deleterName = userSocketMap[socket.id] || 'Unknown';
+    logAndBroadcastActivity(roomId, socket, 'delete', `${deleterName} deleted ${nodeType} "${nodeName}"`);
   });
 
   socket.on(ACTIONS.FS_RENAME_NODE, ({ roomId, nodeId, newName }) => {
@@ -244,9 +288,16 @@ io.on('connection', (socket) => {
       return;
     }
     const fs = roomState[roomId].fileSystem;
-    if (fs[nodeId]) {
-      fs[nodeId].name = newName;
+    const node = fs[nodeId];
+    if (node) {
+      const oldName = node.name;
+      const nodeType = node.type || 'file';
+      node.name = newName;
       io.to(roomId).emit(ACTIONS.FS_SYNC, { fileSystem: { ...fs } });
+
+      // Log the rename activity
+      const renamerName = userSocketMap[socket.id] || 'Unknown';
+      logAndBroadcastActivity(roomId, socket, 'rename', `${renamerName} renamed ${nodeType} "${oldName}" to "${newName}"`);
     }
   });
 
@@ -298,6 +349,22 @@ io.on('connection', (socket) => {
       fileContents: fileContents && Object.keys(fileContents).length > 0 ? fileContents : undefined,
     });
 
+    // Log the upload activity
+    const fileCount = nodes.filter(n => n.type === 'file').length;
+    const folderCount = nodes.filter(n => n.type === 'folder').length;
+    const uploaderName = userSocketMap[socket.id] || 'Unknown';
+    let msg = `${uploaderName} uploaded `;
+    if (fileCount > 0 && folderCount > 0) {
+      msg += `${fileCount} file${fileCount !== 1 ? 's' : ''} in ${folderCount} folder${folderCount !== 1 ? 's' : ''}`;
+    } else if (fileCount > 0) {
+      msg += `${fileCount} file${fileCount !== 1 ? 's' : ''}`;
+    } else if (folderCount > 0) {
+      msg += `${folderCount} folder${folderCount !== 1 ? 's' : ''}`;
+    } else {
+      msg += `workspace items`;
+    }
+    logAndBroadcastActivity(roomId, socket, 'upload', msg);
+
     // Acknowledge success to the uploader so the client can show the toast
     reply(true, '');
   });
@@ -308,6 +375,11 @@ io.on('connection', (socket) => {
       roomState[roomId].permissions[targetSocketId] = canWrite;
       const clients = getAllConnectedClients(roomId);
       io.to(roomId).emit(ACTIONS.PERMISSION_CHANGED, { clients });
+
+      // Log the permission change activity
+      const targetName = userSocketMap[targetSocketId] || 'Unknown';
+      const role = canWrite ? 'Editor' : 'Viewer';
+      logAndBroadcastActivity(roomId, socket, 'permission', `Admin changed permissions for ${targetName} to ${role}.`);
     }
   });
 
@@ -334,6 +406,10 @@ io.on('connection', (socket) => {
       roomId,
       canWrite: true,
     });
+
+    // Log the approve access activity
+    const requesterName = userSocketMap[requesterSocketId] || 'Unknown';
+    logAndBroadcastActivity(roomId, socket, 'permission', `Admin approved Editor access for ${requesterName}.`);
   });
 
   socket.on(ACTIONS.DENY_CODE_EDIT, ({ roomId, requesterSocketId }) => {
@@ -560,6 +636,12 @@ io.on('connection', (socket) => {
         socketId: socket.id,
         userName: userSocketMap[socket.id],
       });
+
+      // Log the leave activity
+      const userName = userSocketMap[socket.id];
+      if (userName && roomState[roomId]) {
+        logAndBroadcastActivity(roomId, socket, 'leave', `${userName} left the room.`);
+      }
 
       if (roomState[roomId]) {
         const clients = getAllConnectedClients(roomId).filter(c => c.socketId !== socket.id);

@@ -33,6 +33,8 @@ const ACTIONS = {
     REJECT_EDIT_ACCESS: 'reject_edit_access',
     ACTIVE_EDITOR_CHANGED: 'active_editor_changed',
     LOCK_STATUS_UPDATE: 'lock_status_update',
+    // Activity Feed
+    ACTIVITY_RECEIVE: 'activity_receive',
 };
 
 module.exports = ACTIONS;
