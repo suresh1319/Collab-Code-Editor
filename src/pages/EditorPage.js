@@ -621,37 +621,25 @@ const EditorPage = () => {
                 }
             }
 
-            // Read content first so we can check its byte length against the server-side limit.
-            // Checking content.length (text/base64 string) aligns with the server's Buffer.byteLength
-            // validation, avoiding the ~33% mismatch that would occur when comparing file.size
-            // against the base64-encoded data URL size for images.
-            let content;
-            if (isImage(file.name)) {
-                try {
-                    content = await readFileAsDataURL(file);
-                } catch (err) {
-                    console.error("Failed to read image data URL for", file.name, err);
-                    content = '';
-                }
-            } else if (isBinary(file.name)) {
-                // Non-image binary files: add node to tree without content
-                const fileId = uuid();
-                nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
-                return null;
-            } else {
-                content = await readFileAsText(file);
-            }
-
-            // Align with server-side validation: check the byte length of the transmitted content
-            if (content && content.length > 1 * 1024 * 1024) {
-                toast.error(`${file.name} exceeds the 1MB size limit.`);
-                return null;
-            }
-
             const fileId = uuid();
+            // Always add the node so binary files appear in the file tree
             nodesToCreate.push({ id: fileId, name: file.name, type: 'file', parentId });
 
-            return { fileId, content: content || '' };
+            // Handle image vs binary vs text reading
+            if (isImage(file.name)) {
+                try {
+                    const content = await readFileAsDataURL(file);
+                    return { fileId, content };
+                } catch (err) {
+                    console.error("Failed to read image data URL for", file.name, err);
+                    return { fileId, content: '' };
+                }
+            }
+            if (isBinary(file.name)) {
+                return null; // Skip content reading for non-image binary files
+            }
+            const content = await readFileAsText(file);
+            return { fileId, content };
         });
 
         const results = (await Promise.all(fileReadPromises)).filter(Boolean);
