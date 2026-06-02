@@ -105,7 +105,6 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
       },
     });
     editorRef.current = editor;
-
     editor.on('change', (instance) => {
         const value = instance.getValue();
         setCharCount(value.length);
@@ -130,11 +129,17 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
 
     // Inject initialContent once provider syncs, but only if the doc is still empty
     const handleSync = (isSynced) => {
-      if (isSynced && initialContent && ytext.length === 0) {
-        ydoc.transact(() => {
-          ytext.insert(0, initialContent);
-        });
-      }
+      if (isSynced) {
+    setCharCount(ytext.length);
+
+    if (initialContent && ytext.length === 0) {
+      ydoc.transact(() => {
+        ytext.insert(0, initialContent);
+      });
+
+      setCharCount(initialContent.length);
+    }
+  }
     };
     provider.on('sync', handleSync);
 
