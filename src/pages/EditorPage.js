@@ -43,6 +43,7 @@ import { useCodeRunner } from '../hooks/useCodeRunner';
 import { isBinary, isImage, getModeFromFilename } from '../utils/fileUtils';
 
 const EditorPage = () => {
+    const MOBILE_BREAKPOINT = 768;
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [showInvite, setShowInvite] = useState(false);
     const [showConfirmDownload, setShowConfirmDownload] = useState(false);
@@ -66,6 +67,7 @@ const EditorPage = () => {
         const saved = localStorage.getItem('sideWidth');
         return saved ? Number(saved) : 260;
     });
+    const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT);
     const resizingRef = useRef(false);
     const startXRef = useRef(0);
     const startWidthRef = useRef(260);
@@ -86,6 +88,12 @@ const EditorPage = () => {
     useEffect(() => {
         localStorage.setItem('sideWidth', sideWidth);
     }, [sideWidth]);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobileViewport(window.innerWidth <= MOBILE_BREAKPOINT);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const updateSideWidth = useCallback((clientX) => {
         const delta = clientX - startXRef.current;
@@ -402,6 +410,9 @@ const EditorPage = () => {
     const handleFileClick = useCallback((fileId) => {
         setActiveFileId(fileId);
         setOpenFiles(prev => prev.includes(fileId) ? prev : [...prev, fileId]);
+        if (window.innerWidth <= MOBILE_BREAKPOINT) {
+            setActivePanel('none');
+        }
     }, []);
 
     const handleTabClose = useCallback((fileId) => {
@@ -664,11 +675,11 @@ const EditorPage = () => {
             <div className="top-navbar">
                 <div className="top-navbar-left">
                     <Monitor size={16} className="navbar-room-icon" />
-                    <span className="navbar-room-name">Room: {roomId}</span>
+                    <span className="navbar-room-name" title={roomId}>Room: {roomId}</span>
                     {activeFile && (
                         <>
                             <ChevronRight size={14} className="navbar-separator" />
-                            <span className="navbar-file-name">{activeFile.name}</span>
+                            <span className="navbar-file-name" title={activeFile.name}>{activeFile.name}</span>
                         </>
                     )}
                 </div>
@@ -701,7 +712,7 @@ const EditorPage = () => {
                     </button>
                     <button className="navbar-leave-btn" onClick={leaveRoom}>
                         <LogOut size={14} strokeWidth={2.5} />
-                        <span>Leave Room</span>
+                        <span className="navbar-leave-label">Leave Room</span>
                     </button>
                 </div>
             </div>
@@ -838,7 +849,18 @@ const EditorPage = () => {
                 {/* ── Side Panel ── */}
                 {['explorer', 'users', 'chat', 'activity'].includes(activePanel) && (
                     <>
-                        <div className="side-panel" style={{ width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}>
+                        {isMobileViewport && (
+                            <button
+                                type="button"
+                                className="mobile-side-overlay"
+                                onClick={() => setActivePanel('none')}
+                                aria-label="Close sidebar"
+                            />
+                        )}
+                        <div
+                            className={`side-panel${isMobileViewport ? ' side-panel--mobile' : ''}`}
+                            style={isMobileViewport ? undefined : { width: `${sideWidth}px`, minWidth: `${sideWidth}px` }}
+                        >
                             {activePanel === 'explorer' && (
                                 <>
                                 <div className="panel-header">
@@ -910,12 +932,12 @@ const EditorPage = () => {
                             <ActivityPanel activities={activities} />
                         )}
                     </div>
-                    <div className="resizer" onMouseDown={startResizing} />
+                    {!isMobileViewport && <div className="resizer" onMouseDown={startResizing} />}
                 </>
                 )}
 
                 {/* ── Main Editor Area ── */}
-                <div className="editorWrap" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div className="editorWrap">
 
                     {/* File tabs */}
                     <FileTabs
@@ -927,7 +949,7 @@ const EditorPage = () => {
                     />
 
                     {/* Editor — flex:1 fills space above console */}
-                    <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                    <div className="editor-stage">
                         {socketReady && activeFileId && activeFile ? (
                             <Editor
                                 key={activeFileId}
