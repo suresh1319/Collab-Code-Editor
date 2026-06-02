@@ -6,7 +6,7 @@ import NotFound from './pages/NotFound';
 import { Toaster } from "react-hot-toast";
 import LandingPage from './pages/LandingPage';
 import ErrorBoundary from './components/ErrorBoundary';
-import Footer from "./components/Footer";
+
 
 function App() {
   return (
@@ -35,7 +35,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
 
-        <Footer />
+        
       </BrowserRouter>
     </ErrorBoundary>
   );

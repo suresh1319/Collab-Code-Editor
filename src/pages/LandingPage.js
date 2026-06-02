@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import Footer from "../components/Footer";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Code2,
@@ -211,11 +212,7 @@ const LandingPage = () => {
           </button>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="landing-footer">
-        <p>Built with ❤️ for collaborative developers.</p>
-      </footer>
+      <Footer />
     </div>
   );
 };

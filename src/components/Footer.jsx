@@ -1,4 +1,5 @@
 import "./Footer.css";
+import { Link } from "react-router-dom";
 import {
   FaGithub,
   FaDiscord,
@@ -30,8 +31,13 @@ function Footer() {
         <div className="footer-section">
           <h3>Quick Links</h3>
 
-          <a href="/">Home</a>
-          <a href="/join">Join Room</a>
+          <Link className="footer-link" to="/">
+  Home
+</Link>
+
+<Link className="footer-link" to="/join">
+  Join Room
+</Link>
 
           <a
             href="https://github.com/suresh1319/Collab-Code-Editor"
@@ -45,13 +51,13 @@ function Footer() {
         <div className="footer-section">
           <h3>Connect</h3>
 
-          <a href="#">
+          <button className="footer-btn">
             <FaEnvelope /> Support
-          </a>
+          </button>
 
-          <a href="#">
+          <button className="footer-btn">
             <FaDiscord /> Community
-          </a>
+          </button>
         </div>
       </div>
 
