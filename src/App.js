@@ -27,12 +27,14 @@ function App() {
         },
       }}></Toaster>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Routes>
-          <Route path='/' element={<LandingPage />}></Route>
-<Route path='/join' element={<Home />}></Route>
-          <Route path='/editor/:roomId' element={<EditorPage />}></Route>
-          <Route path='*' element={<NotFound/>}></Route>
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path='/' element={<LandingPage />}></Route>
+            <Route path='/join' element={<Home />}></Route>
+            <Route path='/editor/:roomId' element={<EditorPage />}></Route>
+            <Route path='*' element={<NotFound/>}></Route>
+          </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </ErrorBoundary>
   );
