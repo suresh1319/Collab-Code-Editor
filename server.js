@@ -640,7 +640,22 @@ io.on('connection', (socket) => {
       // Log the leave activity
       const userName = userSocketMap[socket.id];
       if (userName && roomState[roomId]) {
-        logAndBroadcastActivity(roomId, socket, 'leave', `${userName} left the room.`);
+        socket.to(roomId).emit(ACTIONS.ACTIVITY_RECEIVE, (() => {
+          const room = roomState[roomId];
+          const activity = {
+            id: uuid(),
+            userId: socket.id,
+            userName,
+            type: 'leave',
+            message: `${userName} left the room.`,
+            timestamp: new Date().toISOString(),
+            meta: {}
+          };
+          if (!room.activities) room.activities = [];
+          room.activities.push(activity);
+          if (room.activities.length > 50) room.activities.shift();
+          return activity;
+        })());
       }
 
       if (roomState[roomId]) {
