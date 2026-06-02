@@ -52,6 +52,22 @@ function getAllConnectedClients(roomId) {
 
 io.on('connection', (socket) => {
   socket.on(ACTIONS.JOIN, ({ roomId, userName }) => {
+    // ── Input validation ──────────────────────────────────────────
+    if (!roomId || typeof roomId !== 'string') {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid room ID' });
+    }
+    roomId = roomId.trim();
+    if (roomId.length === 0 || roomId.length > 50) {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid room ID' });
+    }
+    if (!userName || typeof userName !== 'string') {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid username' });
+    }
+    userName = userName.trim();
+    if (userName.length === 0 || userName.length > 30) {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Username must be between 1 and 30 characters' });
+    }
+
     socketRoomMap[socket.id] = roomId;
     userSocketMap[socket.id] = userName;
     socket.join(roomId);

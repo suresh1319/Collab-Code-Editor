@@ -126,6 +126,21 @@ function getAllConnectedClients(roomId) {
 
 io.on('connection', (socket) => {
   socket.on(ACTIONS.JOIN, ({ roomId, userName, adminToken }) => {
+    // ── Input validation ──────────────────────────────────────────
+    if (!roomId || typeof roomId !== 'string') {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid room ID' });
+    }
+    roomId = roomId.trim();
+    if (roomId.length === 0 || roomId.length > 50) {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid room ID' });
+    }
+    if (!userName || typeof userName !== 'string') {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid username' });
+    }
+    userName = userName.trim();
+    if (userName.length === 0 || userName.length > 30) {
+      return socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Username must be between 1 and 30 characters' });
+    }
     // If there was a pending cleanup for this room (e.g. after a refresh), cancel it.
     if (roomCleanupTimers[roomId]) {
       clearTimeout(roomCleanupTimers[roomId]);
@@ -320,7 +335,7 @@ io.on('connection', (socket) => {
 
     // Merge nodes into file system in the order provided (folders before files)
     if (!Array.isArray(nodes)) {
-      socket.emit('error', { message: 'Invalid upload payload: nodes must be an array.' });
+      socket.emit(ACTIONS.PERMISSION_DENIED, { message: 'Invalid upload payload: nodes must be an array.' });
       reply(false, 'Invalid upload payload: nodes must be an array.');
       return;
     }

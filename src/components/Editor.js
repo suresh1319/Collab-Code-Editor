@@ -15,7 +15,10 @@ import 'codemirror/mode/shell/shell';
 import 'codemirror/mode/sql/sql';
 import 'codemirror/mode/php/php';
 import 'codemirror/mode/clike/clike'; // C, C++, Java, C#
-
+import 'codemirror/mode/go/go';
+import 'codemirror/mode/rust/rust';
+import 'codemirror/mode/yaml/yaml';
+import 'codemirror/mode/dart/dart';
 // Addons
 import 'codemirror/addon/edit/closetag';
 import 'codemirror/addon/edit/closebrackets';
@@ -34,6 +37,60 @@ import { CodemirrorBinding } from 'y-codemirror';
 import { isBinary, isImage, getModeFromFilename } from '../utils/fileUtils';
 
 
+
+function getLanguageLabel(fileName = '') {
+  const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+  const mode = getModeFromFilename(fileName);
+  const normalizedMode = typeof mode === 'string' ? mode.toLowerCase() : mode?.name?.toLowerCase();
+
+  const extensionLabelMap = {
+    js: 'JAVASCRIPT',
+    jsx: 'JAVASCRIPT',
+    ts: 'TYPESCRIPT',
+    tsx: 'TYPESCRIPT',
+    json: 'JSON',
+    html: 'HTML',
+    htm: 'HTML',
+    css: 'CSS',
+    scss: 'SCSS',
+    py: 'PYTHON',
+    md: 'MARKDOWN',
+    markdown: 'MARKDOWN',
+    xml: 'XML',
+    svg: 'SVG',
+    sh: 'SHELL',
+    bash: 'SHELL',
+    sql: 'SQL',
+    php: 'PHP',
+    c: 'C',
+    cpp: 'C++',
+    cc: 'C++',
+    cxx: 'C++',
+    h: 'C',
+    hpp: 'C++',
+    java: 'JAVA',
+    cs: 'C#',
+  };
+
+  const modeLabelMap = {
+    javascript: ext === 'ts' || ext === 'tsx' ? 'TYPESCRIPT' : 'JAVASCRIPT',
+    htmlmixed: 'HTML',
+    css: ext === 'scss' ? 'SCSS' : 'CSS',
+    python: 'PYTHON',
+    markdown: 'MARKDOWN',
+    xml: ext === 'svg' ? 'SVG' : 'XML',
+    shell: 'SHELL',
+    sql: 'SQL',
+    php: 'PHP',
+    'text/x-csrc': 'C',
+    'text/x-c++src': 'C++',
+    'text/x-java': 'JAVA',
+    'text/x-csharp': 'C#',
+    'text/plain': ext ? ext.toUpperCase() : 'TEXT',
+  };
+
+  return extensionLabelMap[ext] || modeLabelMap[normalizedMode] || (ext ? ext.toUpperCase() : 'TEXT');
+}
 
 const cursorColors = ['#ffb86c', '#ff79c6', '#8be9fd', '#50fa7b', '#bd93f9', '#ff5555', '#f1fa8c'];
 function getColor(clientId) {
@@ -228,20 +285,20 @@ const Editor = ({
   const modeLabel = (modeObj?.name || modeObj || 'text').toString().toUpperCase();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="editor-shell">
       <div className="presence-bar">
         {peers.map((peer) => (
           <div key={peer.clientId} className="presence-indicator" style={{ backgroundColor: peer.color }} title={peer.name}>
             {peer.name[0]?.toUpperCase()}
           </div>
         ))}
-
         {(() => {
           const fileLock = fileLocks?.[fileId];
           const isLocked = !!fileLock;
           const isLockedByMe = isLocked && fileLock.socketId === socketRef.current?.id;
           const isAllowedEditor = isLocked && fileLock.allowedUsers?.[socketRef.current?.id];
           const activeEditor = activeEditors?.[fileId];
+          const lang = getLanguageLabel(fileName);
           return (
             <>
               {activeEditor && activeEditor.socketId !== socketRef.current?.id && (
@@ -301,11 +358,11 @@ const Editor = ({
                   )}
                 </div>
               )}
+              
+              <span className="presence-lang" title={lang}>{lang}</span>
             </>
           );
         })()}
-
-        <span className="presence-lang">{modeLabel}</span>
       </div>
       
       {isImage(fileName) ? (
