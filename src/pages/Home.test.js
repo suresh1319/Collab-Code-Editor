@@ -19,3 +19,22 @@ test('navigates back to the landing page from the join screen', () => {
 
   expect(screen.getByText(/landing page/i)).toBeInTheDocument();
 });
+
+test('does not render a self-referential join link in the footer on the join screen', () => {
+  render(
+    <MemoryRouter
+      initialEntries={['/join']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <Routes>
+        <Route path="/join" element={<Home />} />
+      </Routes>
+    </MemoryRouter>
+  );
+
+  const footerNav = screen.getByRole('navigation', { name: /footer/i });
+
+  expect(screen.getAllByRole('link', { name: /home/i })).toHaveLength(1);
+  expect(screen.getByRole('link', { name: /github/i })).toBeInTheDocument();
+  expect(footerNav).not.toHaveTextContent(/join room/i);
+});

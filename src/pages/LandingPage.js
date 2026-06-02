@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import SiteFooter from '../components/SiteFooter';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -212,15 +213,9 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="landing-footer">
-        <p>Built with ❤️ for collaborative developers.</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 };
 
 export default LandingPage;
-
-
-
