@@ -52,6 +52,11 @@ export function getModeFromFilename(name = "") {
     cpp: "text/x-c++src",
     java: "text/x-java",
     cs: "text/x-csharp",
+    go: "text/x-go",
+    rs: "text/x-rustsrc",
+    yaml: "yaml",
+    yml: "yaml",
+    dart: "dart",
   };
   return modeMap[ext] || "text/plain";
 }
