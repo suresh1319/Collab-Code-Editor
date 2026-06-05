@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
     File,
@@ -12,6 +12,7 @@ import {
     ChevronRight,
     ChevronDown,
 } from 'lucide-react';
+import DeleteConfirmModal from "./DeleteConfirmModal";
 
 // File icon by extension — returns a Lucide component
 function FileIcon({ name }) {
@@ -28,6 +29,8 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
     const [renaming, setRenaming] = useState(false);
     const [renameVal, setRenameVal] = useState(node.name);
     const [showCreate, setShowCreate] = useState(null); // 'file' | 'folder'
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [undoToast, setUndoToast] = useState(null);
     const [createName, setCreateName] = useState('');
     const renameRef = useRef(null);
     const createRef = useRef(null);
@@ -59,6 +62,43 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
         setShowCreate(null);
         setExpanded(true);
     };
+
+    const handleDeleteClick = (nodeId, name, type, childCount = 0) => {
+        setDeleteTarget({ nodeId, name, type, childCount });
+    };
+
+    const handleDeleteConfirm = () => {
+        const { nodeId, name } = deleteTarget;
+        setDeleteTarget(null);
+
+        const timer = setTimeout(() => {
+            onDeleteNode(nodeId);
+            setUndoToast(null);
+        }, 5000);
+
+        setUndoToast({ label: name, timer });
+    };
+
+    const handleUndo = () => {
+        clearTimeout(undoToast.timer);
+        setUndoToast(null);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (undoToast?.timer) {
+                clearTimeout(undoToast.timer);
+            }
+        };
+}, [undoToast]);
+    
+    useEffect(() => {
+        return () => {
+            if (undoToast?.timer) {
+                clearTimeout(undoToast.timer);
+            }
+        };
+    }, [undoToast]);
 
     const children = (node.children || []).map(id => fileSystem[id]).filter(Boolean);
 
@@ -115,7 +155,7 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
                                 <button title="Rename" onClick={() => { setRenaming(true); setRenameVal(node.name); }}>
                                     <Pencil size={13} />
                                 </button>
-                                <button title="Delete" onClick={() => onDeleteNode(node.id)}>
+                                <button title="Delete" onClick={() => handleDeleteClick(node.id, node.name, node.type, node.children?.length ?? 0)}>
                                     <Trash2 size={13} />
                                 </button>
                             </>
@@ -161,6 +201,23 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
                     canWrite={canWrite}
                 />
             ))}
+
+            {/* Delete Confirmation Modal */}
+            {deleteTarget && (
+                <DeleteConfirmModal
+                    target={deleteTarget}
+                    onCancel={() => setDeleteTarget(null)}
+                    onConfirm={handleDeleteConfirm}
+                />
+            )}
+
+            {/* Undo Toast */}
+            {undoToast && (
+                <div className="undo-toast">
+                    <span>"{undoToast.label}" deleting in 5s…</span>
+                    <button onClick={handleUndo}>Undo</button>
+                </div>
+            )}
         </div>
     );
 }
