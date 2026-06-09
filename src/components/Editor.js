@@ -105,6 +105,7 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
   const bookmarksRef = useRef(new Map());
   const timeoutsRef = useRef(new Map());
   const [peers, setPeers] = useState([]);
+  const [charCount, setCharCount] = useState(0);
 
   // Enforce readOnly dynamically
   useEffect(() => {
@@ -161,9 +162,10 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
       },
     });
     editorRef.current = editor;
-
     editor.on('change', (instance) => {
-      if (onCodeChange) onCodeChange(fileId, instance.getValue());
+        const value = instance.getValue();
+        setCharCount(value.length);
+        if (onCodeChange) onCodeChange(fileId, value);
     });
 
     if (onEditorReady) onEditorReady(fileId, editor);
@@ -184,11 +186,17 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
 
     // Inject initialContent once provider syncs, but only if the doc is still empty
     const handleSync = (isSynced) => {
-      if (isSynced && initialContent && ytext.length === 0) {
-        ydoc.transact(() => {
-          ytext.insert(0, initialContent);
-        });
-      }
+      if (isSynced) {
+    setCharCount(ytext.length);
+
+    if (initialContent && ytext.length === 0) {
+      ydoc.transact(() => {
+        ytext.insert(0, initialContent);
+      });
+
+      setCharCount(initialContent.length);
+    }
+  }
     };
     provider.on('sync', handleSync);
 
@@ -295,7 +303,20 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
             </div>
         </div>
       ) : (
+        <>
         <textarea ref={textareaRef} id="realtimeEditor"></textarea>
+        <div style={{
+        textAlign: 'right',
+        padding: '4px 12px',
+        fontSize: '12px',
+        color: '#888',
+        backgroundColor: 'var(--bg-editor, #282a36)',
+        borderTop: '1px solid #444',
+        fontFamily: 'monospace'
+      }}>
+       Characters: {charCount}
+  </div>
+        </>
       )}
     </div>
   );
