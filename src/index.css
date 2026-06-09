@@ -43,3 +43,154 @@ body {
 html{
   scroll-behavior: smooth;
 }
+
+/* ==========================================
+   Responsive Design System
+   Append at End of index.css
+========================================== */
+
+/* Small Laptops (1024px and below) */
+@media screen and (max-width: 1024px) {
+  :root {
+    --activity-bar-width: 52px;
+  }
+
+  body {
+    font-size: 15px;
+  }
+}
+
+/* Tablets (768px and below) */
+@media screen and (max-width: 768px) {
+  :root {
+    --activity-bar-width: 48px;
+  }
+
+  body {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.6rem;
+  }
+
+  h3 {
+    font-size: 1.3rem;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 14px;
+  }
+}
+
+/* Mobile Devices (600px and below) */
+@media screen and (max-width: 600px) {
+  :root {
+    --activity-bar-width: 44px;
+  }
+
+  body {
+    font-size: 14px;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    line-height: 1.3;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+
+/* Small Phones (400px and below) */
+@media screen and (max-width: 400px) {
+  :root {
+    --activity-bar-width: 40px;
+  }
+
+  body {
+    font-size: 13px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+  }
+}
+
+/* Landscape Mobile Devices */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+  body {
+    font-size: 13px;
+  }
+
+  :root {
+    --activity-bar-width: 40px;
+  }
+}
+
+/* Responsive Media */
+img,
+video,
+iframe,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Better Mobile Touch Experience */
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
+
+/* Prevent Horizontal Scrolling */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Consistent Box Sizing */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
