@@ -2689,3 +2689,55 @@ body[data-theme='light'] .console-separator::after {
   background: #3b82f6 !important; /* Standout blue badge for activities */
 }
 
+/* Scroll To Top Button */
+
+.scroll-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+
+  width: 52px;
+  height: 52px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: var(--aside-bg);
+  color: var(--text-color);
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 4px 12px var(--box-shadow);
+
+  z-index: 999;
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.scroll-to-top:hover {
+  transform: translateY(-3px);
+  background: #4aed88;
+  color: #1c1e29;
+}
+
+.scroll-to-top:active {
+  transform: scale(0.95);
+}
+
+/* Mobile */
+
+@media (max-width: 768px) {
+  .scroll-to-top {
+    width: 46px;
+    height: 46px;
+    bottom: 18px;
+    right: 18px;
+  }
+}
