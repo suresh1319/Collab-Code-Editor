@@ -97,7 +97,25 @@ function getColor(clientId) {
   return cursorColors[Math.abs(clientId) % cursorColors.length];
 }
 
-const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, canWrite, editorTheme, onEditorReady, initialContent }) => {
+const Editor = ({ 
+  socketRef, 
+  roomId, 
+  fileId, 
+  fileName, 
+  onCodeChange, 
+  userName, 
+  canWrite, 
+  editorTheme, 
+  onEditorReady, 
+  initialContent,
+  fileLocks = {},
+  activeEditors = {},
+  onLockFile,
+  onUnlockFile,
+  onRequestEditAccess,
+  isAdmin = false,
+  roomCanWrite = false
+}) => {
   const editorRef = useRef(null);
   const textareaRef = useRef(null);
   const providerRef = useRef(null);
@@ -274,8 +292,77 @@ const Editor = ({ socketRef, roomId, fileId, fileName, onCodeChange, userName, c
             {peer.name[0]?.toUpperCase()}
           </div>
         ))}
-        <span className="presence-filename">{fileName}</span>
-        {(() => { const lang = getLanguageLabel(fileName); return <span className="presence-lang" title={lang}>{lang}</span>; })()}
+        {(() => {
+          const fileLock = fileLocks?.[fileId];
+          const isLocked = !!fileLock;
+          const isLockedByMe = isLocked && fileLock.socketId === socketRef.current?.id;
+          const isAllowedEditor = isLocked && fileLock.allowedUsers?.[socketRef.current?.id];
+          const activeEditor = activeEditors?.[fileId];
+          const lang = getLanguageLabel(fileName);
+          return (
+            <>
+              {activeEditor && activeEditor.socketId !== socketRef.current?.id && (
+                <span className="currently-editing-presence">
+                  ✏️ Currently editing: {activeEditor.userName}
+                </span>
+              )}
+
+              <span className="presence-filename" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                {fileName}
+                {isLocked && (
+                  <span className="presence-lock-label" style={{ fontSize: '0.75rem', opacity: 0.8, color: '#ff5555' }}>
+                    (🔒 Locked by {fileLock.userName}{isLockedByMe ? ' - You' : ''})
+                  </span>
+                )}
+              </span>
+
+              {roomId && fileId && socketRef.current && (
+                <div className="presence-lock-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
+                  {!isLocked ? (
+                    roomCanWrite && (
+                      <button 
+                        className="editor-lock-btn lock-action-btn" 
+                        onClick={() => onLockFile(fileId)}
+                        title="Lock this file to prevent others from editing"
+                      >
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        Lock File
+                      </button>
+                    )
+                  ) : (
+                    (isLockedByMe || isAdmin) ? (
+                      <button 
+                        className="editor-lock-btn unlock-action-btn" 
+                        onClick={() => onUnlockFile(fileId)}
+                        title={isAdmin && !isLockedByMe ? "Override lock as Admin" : "Unlock this file"}
+                      >
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                          <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                        </svg>
+                        Unlock File
+                      </button>
+                    ) : (
+                      !isAllowedEditor && roomCanWrite && (
+                        <button 
+                          className="editor-lock-btn request-action-btn" 
+                          onClick={() => onRequestEditAccess(fileId)}
+                        >
+                          Request Edit Access
+                        </button>
+                      )
+                    )
+                  )}
+                </div>
+              )}
+              
+              <span className="presence-lang" title={lang}>{lang}</span>
+            </>
+          );
+        })()}
       </div>
       
       {isImage(fileName) ? (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileCode2, File } from 'lucide-react';
+import { FileCode2, File, Lock } from 'lucide-react';
 
 function FileIcon({ name = '' }) {
     const ext = name.split('.').pop().toLowerCase();
@@ -8,7 +8,7 @@ function FileIcon({ name = '' }) {
     return <File size={13} />;
 }
 
-const FileTabs = ({ openFiles, fileSystem, activeFileId, onTabClick, onTabClose }) => {
+const FileTabs = ({ openFiles, fileSystem, activeFileId, onTabClick, onTabClose, fileLocks = {} }) => {
     if (openFiles.length === 0) return null;
 
     return (
@@ -24,7 +24,14 @@ const FileTabs = ({ openFiles, fileSystem, activeFileId, onTabClick, onTabClose 
                         onClick={() => onTabClick(fileId)}
                     >
                         <span className="file-tab-icon"><FileIcon name={node.name} /></span>
-                        <span className="file-tab-name">{node.name}</span>
+                        <span className="file-tab-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            {node.name}
+                            {fileLocks?.[fileId] && (
+                                <span className="tab-lock-indicator" style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.7 }}>
+                                    <Lock size={10} strokeWidth={2.5} />
+                                </span>
+                            )}
+                        </span>
                         <button
                             className="file-tab-close"
                             onClick={e => { e.stopPropagation(); onTabClose(fileId); }}

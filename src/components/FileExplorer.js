@@ -11,6 +11,7 @@ import {
     Trash2,
     ChevronRight,
     ChevronDown,
+    Lock,
 } from 'lucide-react';
 
 // File icon by extension — returns a Lucide component
@@ -23,7 +24,7 @@ function FileIcon({ name }) {
 }
 
 // Single tree node
-function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreateNode, onDeleteNode, onRenameNode, canWrite }) {
+function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreateNode, onDeleteNode, onRenameNode, canWrite, fileLocks = {}, socketId = null }) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(false);
     const [renameVal, setRenameVal] = useState(node.name);
@@ -35,6 +36,10 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
     const isFolder = node.type === 'folder';
     const isRoot = node.id === 'root';
     const isActive = activeFileId === node.id;
+    const fileLock = fileLocks?.[node.id];
+    const isLocked = !isFolder && !!fileLock;
+    const isLockedByMe = isLocked && fileLock.socketId === socketId;
+    const isAllowedEditor = isLocked && fileLock.allowedUsers && fileLock.allowedUsers[socketId];
 
     const handleRenameSubmit = () => {
         const trimmed = renameVal.trim();
@@ -65,8 +70,9 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
     return (
         <div className="fs-node">
             <div
-                className={`fs-node-row ${isActive ? 'fs-node-active' : ''}`}
+                className={`fs-node-row ${isActive ? 'fs-node-active' : ''} ${isLocked ? 'fs-node-locked' : ''} ${isLockedByMe ? 'fs-node-locked-by-me' : ''} ${isAllowedEditor ? 'fs-node-locked-allowed' : ''}`}
                 style={{ paddingLeft: `${depth * 14 + 8}px` }}
+                title={isLocked ? `Locked by ${fileLock.userName}${isLockedByMe ? ' (You)' : ''}${isAllowedEditor ? ' - Access Approved' : ''}` : undefined}
                 onClick={() => {
                     if (isFolder) setExpanded(e => !e);
                     else onFileClick(node.id);
@@ -96,7 +102,17 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
                         onClick={e => e.stopPropagation()}
                     />
                 ) : (
-                    <span className="fs-node-name">{node.name}</span>
+                    <span className="fs-node-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        {node.name}
+                        {isLocked && (
+                            <span 
+                                className={`file-lock-indicator ${isLockedByMe ? 'lock-me' : isAllowedEditor ? 'lock-allowed' : 'lock-other'}`}
+                                style={{ display: 'inline-flex', alignItems: 'center' }}
+                            >
+                                <Lock size={11} strokeWidth={2.5} />
+                            </span>
+                        )}
+                    </span>
                 )}
                 {canWrite && (
                     <span className="fs-node-actions" onClick={e => e.stopPropagation()}>
@@ -159,6 +175,8 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
                     onDeleteNode={onDeleteNode}
                     onRenameNode={onRenameNode}
                     canWrite={canWrite}
+                    fileLocks={fileLocks}
+                    socketId={socketId}
                 />
             ))}
         </div>
@@ -166,7 +184,7 @@ function FileNode({ node, fileSystem, depth, activeFileId, onFileClick, onCreate
 }
 
 // Main FileExplorer
-const FileExplorer = ({ fileSystem, activeFileId, onFileClick, onCreateNode, onDeleteNode, onRenameNode, canWrite }) => {
+const FileExplorer = ({ fileSystem, activeFileId, onFileClick, onCreateNode, onDeleteNode, onRenameNode, canWrite, fileLocks = {}, socketId = null }) => {
     const root = fileSystem['root'];
     if (!root) return null;
 
@@ -186,6 +204,8 @@ const FileExplorer = ({ fileSystem, activeFileId, onFileClick, onCreateNode, onD
                     onDeleteNode={onDeleteNode}
                     onRenameNode={onRenameNode}
                     canWrite={canWrite}
+                    fileLocks={fileLocks}
+                    socketId={socketId}
                 />
             </div>
         </div>

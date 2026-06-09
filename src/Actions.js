@@ -18,7 +18,6 @@ const ACTIONS = {
     FS_RENAME_NODE: 'fs_rename_node',
     // Uploads: sends nodes + file contents in one batch so content syncs to all collaborators
     FS_UPLOAD_BATCH: 'fs_upload_batch',
-        PERMISSION_DENIED: 'permission_denied',
     // Server → admin-only: delivers the secure ownership token for reconnect validation
     ADMIN_TOKEN: 'admin_token',
     // Permission denial feedback to client
@@ -26,6 +25,14 @@ const ACTIONS = {
     // Group Chat
     CHAT_SEND: 'chat_send',
     CHAT_RECEIVE: 'chat_receive',
+    // File Lock & Edit Access Request
+    FILE_LOCKED: 'file_locked',
+    FILE_UNLOCKED: 'file_unlocked',
+    REQUEST_EDIT_ACCESS: 'request_edit_access',
+    APPROVE_EDIT_ACCESS: 'approve_edit_access',
+    REJECT_EDIT_ACCESS: 'reject_edit_access',
+    ACTIVE_EDITOR_CHANGED: 'active_editor_changed',
+    LOCK_STATUS_UPDATE: 'lock_status_update',
     // Activity Feed
     ACTIVITY_RECEIVE: 'activity_receive',
 };

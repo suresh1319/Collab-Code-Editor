@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Send, X } from 'lucide-react';
 
-const RequestAccessModal = ({ isOpen, onClose, onSubmit }) => {
+const RequestAccessModal = ({ 
+    isOpen, 
+    onClose, 
+    onSubmit, 
+    title = "Request Write Access", 
+    description = "Send a message to the admin requesting edit permissions.", 
+    placeholder = "Why do you need write access?" 
+}) => {
     const [message, setMessage] = useState('');
     const maxLength = 200;
     
@@ -46,7 +53,7 @@ const RequestAccessModal = ({ isOpen, onClose, onSubmit }) => {
                 <div className="modal-header">
                     <h3 className="modal-title">
                         <Send size={18} className="modal-title-icon" style={{ color: 'var(--btn-bg)' }} />
-                        Request Write Access
+                        {title}
                     </h3>
                     <button 
                         className="modal-close" 
@@ -58,13 +65,13 @@ const RequestAccessModal = ({ isOpen, onClose, onSubmit }) => {
                 </div>
 
                 <p className="modal-desc" style={{ marginBottom: '16px', fontSize: '0.9rem' }}>
-                    Send a message to the admin requesting edit permissions.
+                    {description}
                 </p>
 
                 <div style={{ marginBottom: '20px' }}>
                     <textarea
                         className="inputBox"
-                        placeholder="Why do you need write access?"
+                        placeholder={placeholder}
                         value={message}
                         onChange={(e) => setMessage(e.target.value.slice(0, maxLength))}
                         style={{
